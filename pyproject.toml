@@ -1,0 +1,24 @@
+[project]
+name = "led-wall"
+version = "0.1.0"
+description = "Code to control an LED Wall over Artnet"
+readme = "README.md"
+authors = [
+    { name = "lorin", email = "lorin_muhlebach@windowslive.com" }
+]
+requires-python = ">=3.10"
+dependencies = [
+    #"aiortc>=1.13.0",
+    "deffcode>=0.2.6",
+    "nicegui>=2.22.1",
+    "nicegui-react>=0.1.7",
+    "opencv-python>=4.12.0.88",
+    "pyartnet>=1.0.1",
+    "pydmxcontrol>=2.0.0",
+    "pyserial>=3.5",
+    "pywebview>=6.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
