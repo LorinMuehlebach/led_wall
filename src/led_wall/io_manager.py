@@ -4,6 +4,10 @@ import cv2
 from functools import partial
 from threading import Thread
 
+import asyncio
+from pyartnet import ArtNetNode
+
+
 from nicegui import ui
 
 from led_wall.ui.settings_manager import SettingsElement, SettingsManager
@@ -34,6 +38,7 @@ class IO_Manager():
         self.settings_manager = SettingsManager(parent=settings_manager, name="io_settings")
         self.dmx_channel_inputs = DMX_channels_Input(10)
 
+        self.output_artnet_ip = '192.168.178.100'
         self.pixel_channels = 4
         self.resolution = (30,58) #resolution of the LED wall in pixels
         self.dimensions = (6, 3) #dimension of the LED wall in meters
@@ -122,9 +127,20 @@ class IO_Manager():
                 precision=0,
                 manager=self.settings_manager
             ),
+            SettingsElement(
+                label='Artnet IP',
+                input=ui.input,
+                settings_id='artnet_ip',
+                default_value=self.output_artnet_ip,
+                on_change=lambda e, self=self: self.output_artnet_init(e.value) if e.value else None,
+                manager=self.settings_manager
+            ),
         ]
 
+
         self.output_buffer = np.zeros((self.resolution[0], self.resolution[1], self.pixel_channels), dtype=np.uint8)
+        
+        self.Output_ArtNetNode = None  # ArtNetNode instance for output
 
         self.create_frame = None #callback function to the selected effect
 
@@ -151,7 +167,10 @@ class IO_Manager():
 
     def stop_loop(self) -> None:
         self.run = False
-        self.run_thread.join()
+        try:
+            self.run_thread.join()
+        except Exception as e:
+            print(f"Error stopping loop: {e}")
 
     def __del__(self):
         self.stop_loop()
@@ -172,6 +191,24 @@ class IO_Manager():
             frame = self.create_frame(channels, last_output=self.output_buffer) if self.create_frame else self.output_buffer
 
             self.output_buffer = frame
+
+            #self.update_artnet()
+
+    def output_artnet_init(self,ip):
+        pass
+        # self.Output_ArtNetNode = ArtNetNode(ip, 6454)
+        # self.universes = []
+        # for i in range(self.resolution[0]):
+        #     u = self.Output_ArtNetNode.add_universe(i)
+        #     u.add_channel(1,self.resolution[1] * self.pixel_channels)
+        #     self.universes.append(u)
+
+    def update_artnet(self):
+        if not self.Output_ArtNetNode:
+            return
+
+        for i, u in enumerate(self.universes):
+            u.update(self.output_buffer[i]) #todo expand array
 
     def update_DMX_channels(self, channels):
         self.dmx_channel_inputs.update_sliders(channels)

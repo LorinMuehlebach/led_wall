@@ -4,7 +4,7 @@ Software to convert single channel DMX data into control signals for a LED Matri
 ## Setup
 install [uv](https://docs.astral.sh/uv/getting-started/installation/)
 
-run:
+run form repo directory:
 
      uv run entry_points/main.py
 

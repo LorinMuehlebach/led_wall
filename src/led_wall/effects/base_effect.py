@@ -38,7 +38,7 @@ class BaseEffect:
             'mode': Fader(), #selects the active effect
         }
 
-    def run_raw(self, DMX_channels,last_output) -> dict[str, object]:
+    def run_raw(self, DMX_channels,last_output:np.array) -> np.array:
         """
         Returns a dictionary with all inputs for the effect.
         """

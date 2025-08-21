@@ -107,7 +107,7 @@ with ui.tabs().classes('w-full') as tabs:
     tab_show = ui.tab('Show')
     tab_setting = ui.tab('Einstellungen')
 
-with ui.tab_panels(tabs, value=tab_setting).classes('w-full'):
+with ui.tab_panels(tabs, value=tab_show).classes('w-full'):
     with ui.tab_panel(tab_show):
         show_ui(effect_manager,io_manager)
     with ui.tab_panel(tab_setting):
