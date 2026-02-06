@@ -21,7 +21,8 @@
             },
             "effect_settings_0": {
                 "convert_to_rgbw": true,
-                "convert_to_rgbw_2": false
+                "convert_to_rgbw_2": false,
+                "speed": 50
             }
         },
         "Show2": {
@@ -52,6 +53,9 @@
         "preview_in_window": false,
         "input_source": "artnet",
         "dmx_address": 1,
-        "artnet_ip": "192.168.178.100"
+        "artnet_ip": "192.168.178.100",
+        "input_dmx_address": 1.0,
+        "input_universe": 0.0,
+        "input_port": 6454
     }
 }

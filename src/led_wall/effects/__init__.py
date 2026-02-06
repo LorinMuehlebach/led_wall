@@ -11,7 +11,16 @@ __all__ = [ basename(f)[:-3] for f in modules if isfile(f) and not f.endswith('_
 def get_effects():
     for module in __all__:
         importlib.import_module(f".{module}", package=__name__)
-    return [effect for effect in BaseEffect.__subclasses__()]
+    
+    #sort the effects by name
+    all_effects = [effect for effect in BaseEffect.__subclasses__()]
+    sorted_effects = sorted(all_effects, key=lambda e: e.NAME)
+    #move single_color to the front
+    for i, effect in enumerate(sorted_effects):
+        if effect.NAME == "single_color":
+            sorted_effects.insert(0, sorted_effects.pop(i))
+            break
+    return sorted_effects
 
 def get_effect_class(name) -> type[BaseEffect] | None:
     effects = get_effects()

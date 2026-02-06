@@ -107,7 +107,7 @@ class ArtNetSender:
                 
                 # Set the packet and send
                 self.artnet.set(dmx_packet)
-                # self.artnet.show() # Disabled explicitly because start() handles it
+                self.artnet.show() # Disabled explicitly because start() handles it
                 
                 logger.debug(f"Sent DMX data: {channels}")
             except Exception as e:
@@ -139,7 +139,7 @@ class ArtNetSender:
             )
             
             # Start sending
-            self.artnet.start()
+            #self.artnet.start()
             self.is_sending = True
             
             # Update UI

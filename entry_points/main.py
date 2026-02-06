@@ -40,13 +40,13 @@ effect_manager = None
 @ui.refreshable
 def main_window(effect_manager):
     if effect_manager:
-        with ui.row().classes('w-full grid grid-flow-col grid-col-4'):
-            with ui.element("div").classes('col-span-1'):
+        with ui.row().classes('w-full flex flex-wrap gap-4'):
+            with ui.element("div").classes('w-full md:w-1/4 min-w-[200px]'):
                 ui.label("Vorschau").classes('text-2xl font-bold mb-4')
                 preview_image = ui.interactive_image().classes('w-full max-w-400')
                 effect_manager.init_preview(preview_image)
 
-            with ui.element("div").classes('col-span-3'):
+            with ui.element("div").classes('flex-1 min-w-[300px]'):
                 ui.label("Effekte").classes('text-2xl font-bold mb-4')
                 effect_manager.effect_manager_ui()
 
