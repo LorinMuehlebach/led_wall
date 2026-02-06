@@ -919,6 +919,7 @@ dependencies = [
     { name = "pydmxcontrol" },
     { name = "pyserial" },
     { name = "pywebview" },
+    { name = "stupidartnet" },
     { name = "vidgear" },
 ]
 
@@ -933,6 +934,7 @@ requires-dist = [
     { name = "pydmxcontrol", specifier = ">=2.0.0" },
     { name = "pyserial", specifier = ">=3.5" },
     { name = "pywebview", specifier = ">=6.0" },
+    { name = "stupidartnet", specifier = ">=1.4.0" },
     { name = "vidgear", specifier = ">=0.3.4" },
 ]
 
@@ -1914,6 +1916,15 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/04/57/d062573f391d062710d4088fa1369428c38d51460ab6fedff920efef932e/starlette-0.47.2.tar.gz", hash = "sha256:6ae9aa5db235e4846decc1e7b79c4f346adf41e9777aebeb49dfd09bbd7023d8", size = 2583948, upload-time = "2025-07-20T17:31:58.522Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/f7/1f/b876b1f83aef204198a42dc101613fefccb32258e5428b5f9259677864b4/starlette-0.47.2-py3-none-any.whl", hash = "sha256:c5847e96134e5c5371ee9fac6fdf1a67336d5815e09eb2a01fdb57a351ef915b", size = 72984, upload-time = "2025-07-20T17:31:56.738Z" },
+]
+
+[[package]]
+name = "stupidartnet"
+version = "1.6.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/6e/41/ef5ac9d70b6694c41b21d42b2ba7b73772f4713f7b7c2b3c8b5c091ffe7f/stupidartnet-1.6.0.tar.gz", hash = "sha256:0e4c0cd0b662c2663ce0397d6f990dbae91576ad7c10230863e96d8d78c21845", size = 14892, upload-time = "2025-03-12T19:59:17.598Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/85/af/8ec0c05142bd915e9f95b85c238c0ae4a0ff61060c29b3b92a245b78139a/stupidartnet-1.6.0-py3-none-any.whl", hash = "sha256:b9b96fe23e759966b8692d99f0b6111f2b0a1b90b18e10a7bdc8a459ca3fe7c0", size = 12668, upload-time = "2025-03-12T19:59:16.453Z" },
 ]
 
 [[package]]
