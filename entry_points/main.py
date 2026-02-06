@@ -128,11 +128,11 @@ def shutdown_handler(signum, frame):
             logger.error(f"Error stopping IO manager: {e}")
     
     # Save settings
-    try:
-        settings_manager.save()
-        logger.info("Settings saved")
-    except Exception as e:
-        logger.error(f"Error saving settings: {e}")
+    # try:
+    #     settings_manager.save_to_file()
+    #     logger.info("Settings saved")
+    # except Exception as e:
+    #     logger.error(f"Error saving settings: {e}")
     
     logger.info("Shutdown complete")
     
@@ -177,8 +177,8 @@ with ui.tab_panels(tabs, value=tab_show).classes('w-full'):
     with ui.tab_panel(tab_show):
         show_ui(effect_manager,io_manager)
     with ui.tab_panel(tab_setting):
-        ui.label('Effekt Einstellungen').classes('text-1xl font-bold mb-4')
-        effect_settings_ui(effect_manager)
+        # ui.label('Effekt Einstellungen').classes('text-1xl font-bold mb-4')
+        # effect_settings_ui(effect_manager)
 
         ui.separator()
         ui.label('System Einstellungen').classes('text-1xl font-bold mb-4')
@@ -186,8 +186,7 @@ with ui.tab_panels(tabs, value=tab_show).classes('w-full'):
             for element in setting_elements:
                 element.create_ui()
 
-        with ui.expansion('Eingänge / Ausgänge').classes('w-full'):
-            io_manager.ui_settings()  # Create the settings UI for IO Manager
+        io_manager.ui_settings()  # Create the settings UI for IO Manager
 
 
 

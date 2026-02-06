@@ -5,7 +5,8 @@ from functools import partial
 from threading import Thread
 
 import asyncio
-from pyartnet import ArtNetNode
+#from pyartnet import ArtNetNode
+from stupidArtnet import StupidArtnetServer
 
 
 from nicegui import ui
@@ -37,6 +38,13 @@ class IO_Manager():
         """
         self.settings_manager = SettingsManager(parent=settings_manager, name="io_settings")
         self.dmx_channel_inputs = DMX_channels_Input(10)
+        self.input_source = "artnet" #can be "artnet", "dmx" or "none"
+
+        #artnet input
+        self.artnet_server = None  # ArtNetServer instance for input
+        self.input_universe = 0
+        self.input_port = 6454
+        self.input_dmx_address = 1
 
         self.output_artnet_ip = '192.168.178.100'
         self.pixel_channels = 4
@@ -44,104 +52,127 @@ class IO_Manager():
         self.dimensions = (6, 3) #dimension of the LED wall in meters
         self.framerate = framerate
         self.preview_in_window = preview_in_window
-
-        self.dmx_address = 1
         
         self.settings_elements = [
-            SettingsElement(
-                label='Auflösung Breite',
-                input=ui.number,
-                default_value=self.resolution[0],
-                settings_id='resolution_width',
-                on_change=lambda e, self=self: setattr(self, 'resolution', (int(e.value) if e.value is not None else self.resolution[0], self.resolution[1])),
-                precision=0,
-                suffix=" px",
-                manager=self.settings_manager,
-            ),
-            SettingsElement(
-                label='Auflösung Höhe',
-                input=ui.number,
-                default_value=self.resolution[1],
-                settings_id='resolution_height',
-                on_change=lambda e, self=self: setattr(self, 'resolution', (self.resolution[0], int(e.value) if e.value is not None else self.resolution[1])),
-                precision=0,
-                suffix=" px",
-                manager=self.settings_manager,
-            ),
-            SettingsElement(
-                label='Abmessungen Breite',
-                input=ui.number,
-                default_value=self.dimensions[0],
-                settings_id='dimensions_width',
-                on_change=lambda e, self=self: setattr(self, 'dimensions', (int(e.value) if e.value is not None else self.dimensions[0], self.dimensions[1])),
-                precision=0,
-                suffix=" m",
-                manager=self.settings_manager
-            ),
-            SettingsElement(
-                label='Abmessungen Höhe',
-                input=ui.number,
-                default_value=self.dimensions[1],
-                settings_id='dimensions_height',
-                on_change=lambda e, self=self: setattr(self, 'dimensions', (self.dimensions[0], int(e.value) if e.value is not None else self.dimensions[1])),
-                precision=0,
-                suffix=" m",
-                manager=self.settings_manager
-            ),
-            SettingsElement(
-                label='Framerate',
-                input=ui.number,
-                default_value=self.framerate,
-                settings_id='framerate',
-                on_change=lambda e, self=self: setattr(self, 'framerate', int(e.value) if e.value is not None else self.framerate),
-                precision=0,
-                manager=self.settings_manager
-            ),
-            SettingsElement(
-                label='RGBW LEDs',
-                input=ui.switch,
-                default_value=self.pixel_channels == 4,
-                manager=self.settings_manager
-            ),
-            SettingsElement(
-                label='preview in window',
-                input=ui.switch,
-                default_value=self.preview_in_window,
-                on_change=lambda e, self=self: setattr(self, 'preview_in_window', e.value),
-                manager=self.settings_manager
-            ),
-            SettingsElement(
-                label='Quelle',
-                input=ui.select,
-                settings_id='input_source',
-                default_value="none",
-                options=["artnet","dmx","none"],
-                manager=self.settings_manager
-            ),
-            SettingsElement(
-                label='DMX Adresse',
-                input=ui.number,
-                settings_id='dmx_address',
-                default_value=self.dmx_address,
-                on_change=lambda e, self=self: setattr(self, 'dmx_address', int(e.value) if e.value is not None else self.dmx_address),
-                precision=0,
-                manager=self.settings_manager
-            ),
-            SettingsElement(
-                label='Artnet IP',
-                input=ui.input,
-                settings_id='artnet_ip',
-                default_value=self.output_artnet_ip,
-                on_change=lambda e, self=self: self.output_artnet_init(e.value) if e.value else None,
-                manager=self.settings_manager
-            ),
         ]
 
+        self.settings_menu = {
+            "Display": [
+                SettingsElement(
+                    label='Auflösung Breite',
+                    input=ui.number,
+                    default_value=self.resolution[0],
+                    settings_id='resolution_width',
+                    on_change=lambda e, self=self: setattr(self, 'resolution', (int(e.value) if e.value is not None else self.resolution[0], self.resolution[1])),
+                    precision=0,
+                    suffix=" px",
+                    manager=self.settings_manager,
+                ),
+                SettingsElement(
+                    label='Auflösung Höhe',
+                    input=ui.number,
+                    default_value=self.resolution[1],
+                    settings_id='resolution_height',
+                    on_change=lambda e, self=self: setattr(self, 'resolution', (self.resolution[0], int(e.value) if e.value is not None else self.resolution[1])),
+                    precision=0,
+                    suffix=" px",
+                    manager=self.settings_manager,
+                ),
+                SettingsElement(
+                    label='Abmessungen Breite',
+                    input=ui.number,
+                    default_value=self.dimensions[0],
+                    settings_id='dimensions_width',
+                    on_change=lambda e, self=self: setattr(self, 'dimensions', (int(e.value) if e.value is not None else self.dimensions[0], self.dimensions[1])),
+                    precision=0,
+                    suffix=" m",
+                    manager=self.settings_manager
+                ),
+                SettingsElement(
+                    label='Abmessungen Höhe',
+                    input=ui.number,
+                    default_value=self.dimensions[1],
+                    settings_id='dimensions_height',
+                    on_change=lambda e, self=self: setattr(self, 'dimensions', (self.dimensions[0], int(e.value) if e.value is not None else self.dimensions[1])),
+                    precision=0,
+                    suffix=" m",
+                    manager=self.settings_manager
+                ),
+                SettingsElement(
+                    label='Framerate',
+                    input=ui.number,
+                    default_value=self.framerate,
+                    settings_id='framerate',
+                    on_change=lambda e, self=self: setattr(self, 'framerate', int(e.value) if e.value is not None else self.framerate),
+                    precision=0,
+                    manager=self.settings_manager
+                ),
+                SettingsElement(
+                    label='RGBW LEDs',
+                    input=ui.switch,
+                    default_value=self.pixel_channels == 4,
+                    manager=self.settings_manager
+                ),
+                SettingsElement(
+                    label='preview in window',
+                    input=ui.switch,
+                    default_value=self.preview_in_window,
+                    on_change=lambda e, self=self: setattr(self, 'preview_in_window', e.value),
+                    manager=self.settings_manager
+                ),
+            ],
+            "Eingang": [
+                SettingsElement(
+                    label='Quelle',
+                    input=ui.select,
+                    settings_id='input_source',
+                    default_value=self.input_source,
+                    on_change=lambda e, self=self: setattr(self, 'input_source', e.value) or self.input_init(), #reinitialize input on change
+                    options=["artnet","dmx","none"],
+                    manager=self.settings_manager
+                ),
+                SettingsElement(
+                    label='DMX Adresse',
+                    input=ui.number,
+                    settings_id='input_dmx_address',
+                    default_value=self.input_dmx_address,
+                    on_change=lambda e, self=self: self.input_init(dmx_address=int(e.value) if e.value is not None else self.input_dmx_address),
+                    precision=0,
+                    manager=self.settings_manager
+                ),
+                SettingsElement(
+                    label='Universum (nur ArtNet)',
+                    input=ui.number,
+                    settings_id='input_universe',
+                    default_value=self.input_universe,
+                    on_change=lambda e, self=self: self.input_artnet_init(universum = int(e.value) if e.value is not None else self.input_universe),
+                    precision=0,
+                    manager=self.settings_manager
+                ),
+                SettingsElement(
+                    label='Port (nur ArtNet)',
+                    input=ui.number,
+                    settings_id='input_port',
+                    default_value=self.input_port,
+                    on_change=lambda e, self=self: self.input_artnet_init(port = int(e.value) if e.value is not None else self.input_port),
+                    precision=0,
+                    manager=self.settings_manager
+                ),
+            ],
+            "Ausgang": [
+                SettingsElement(
+                    label='Artnet IP',
+                    input=ui.input,
+                    settings_id='artnet_ip',
+                    default_value=self.output_artnet_ip,
+                    on_change=lambda e, self=self: self.output_artnet_init(ip=e.value) if e.value else None,
+                    manager=self.settings_manager
+                ),
+            ]
+        }
 
         self.output_buffer = np.zeros((self.resolution[0], self.resolution[1], self.pixel_channels), dtype=np.uint8)
         
-        self.Output_ArtNetNode = None  # ArtNetNode instance for output
-
         self.create_frame = None #callback function to the selected effect
 
         self.ts_last_frame = 0
@@ -154,9 +185,17 @@ class IO_Manager():
         Create the settings UI for this object
         This method is called on create ui settings
         """
-        with ui.column().classes('w-full'):
-            for element in self.settings_elements:
-                element.create_ui()
+
+        for category, elements in self.settings_menu.items():
+            with ui.expansion(category).classes('w-full'):
+                with ui.column().classes('w-full'):
+                    for element in elements:
+                        element.create_ui()
+
+        # with ui.expansion('Eingänge / Ausgänge').classes('w-full'):
+        # with ui.column().classes('w-full'):
+        #     for element in self.settings_elements:
+        #         element.create_ui()
 
     @ui.refreshable
     def dmx_channel_ui(self) -> None:
@@ -168,6 +207,10 @@ class IO_Manager():
 
     def stop_loop(self) -> None:
         self.run = False
+        if self.artnet_server:
+            self.artnet_server.close()
+            del self.artnet_server
+            self.artnet_server = None
         if self.run_thread.is_alive():
             try:
                 self.run_thread.join(timeout=2.0)
@@ -197,22 +240,50 @@ class IO_Manager():
             self.output_buffer = frame
 
             #self.update_artnet()
+    
+    def input_init(self, dmx_address:int=None):
+        if dmx_address is not None:
+            self.input_dmx_address = dmx_address
 
-    def output_artnet_init(self,ip):
+        if self.input_source == "artnet":
+            self.input_artnet_init()
+        elif self.input_source == "dmx":
+            pass #nothing to initialize for DMX input as we read the channels directly from the sliders
+
+    def input_artnet_init(self,universum:int=None, port:int=None):
+        if universum is not None:
+            self.input_universe = universum
+        if port is not None:
+            self.input_port = port
+        
+
+        if self.artnet_server:
+            self.artnet_server.close()
+            del self.artnet_server
+        
+        self.artnet_server = StupidArtnetServer(self.input_port)
+        self.listener_id = self.artnet_server.register_listener(
+            universe=self.input_universe,
+            callback_function=self.on_artnet_frame
+        )
+
+    def on_artnet_frame(self, data):
+        start = self.input_dmx_address - 1
+        count = self.dmx_channel_inputs.n_channels
+        
+        if len(data) >= start + count:
+            values = list(data[start : start + count])
+            self.dmx_channel_inputs.update_sliders(values, external=True)
+
+    def output_artnet_init(self, ip:str=None):
+        if ip is not None:
+            self.output_artnet_ip = ip
+
+        # Initialize ArtNet output (not implemented in this example, placeholder for future implementation)
         pass
-        # self.Output_ArtNetNode = ArtNetNode(ip, 6454)
-        # self.universes = []
-        # for i in range(self.resolution[0]):
-        #     u = self.Output_ArtNetNode.add_universe(i)
-        #     u.add_channel(1,self.resolution[1] * self.pixel_channels)
-        #     self.universes.append(u)
 
     def update_artnet(self):
-        if not self.Output_ArtNetNode:
-            return
-
-        for i, u in enumerate(self.universes):
-            u.update(self.output_buffer[i]) #todo expand array
+        pass
 
     def update_DMX_channels(self, channels):
         self.dmx_channel_inputs.update_sliders(channels)

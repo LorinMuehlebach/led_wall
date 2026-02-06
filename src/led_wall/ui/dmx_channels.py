@@ -64,7 +64,7 @@ class DMX_channels_Input():
         #     raise ValueError(f'Expected {self.n_channels} values, got {len(values)}')
         
         if external and self.ignore_external:
-            logger.info('External ignore switch is on, not updating sliders.')
+            logger.debug('External ignore switch is on, not updating sliders.')
             return
 
         for i, value in enumerate(values):

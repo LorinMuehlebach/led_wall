@@ -73,14 +73,14 @@ class EffectManager():
     def effect_manager_ui(self):
         effects = effects_class.get_effects()
 
-        all_tabs = []
-        with ui.tabs().classes('w-full q-dark') as tabs:
+        self.all_tabs = []
+        with ui.tabs().classes('w-full q-dark') as self.tabs:
             for i in range(self.nof_effects):
-                all_tabs.append(ui.tab(f'{i+1}'))
+                self.all_tabs.append(ui.tab(f'{i+1}'))
 
-        with ui.tab_panels(tabs, value=all_tabs[0]).classes('w-full'):
+        with ui.tab_panels(self.tabs, value=self.all_tabs[self.active_effect]).classes('w-full'):
             for i in range(self.nof_effects):
-                with ui.tab_panel(all_tabs[i]):
+                with ui.tab_panel(self.all_tabs[i]):
                     with ui.row().classes('w-full'):
                         with ui.element("div").classes('min-w-48'):
                             self.settings_elements[i].create_ui()
@@ -100,21 +100,6 @@ class EffectManager():
                             ui.button('Einstellungen', on_click=dialog.open)
                         with ui.element("div").classes('flex-grow'):
                             self.effects[i].ui_show()
-
-        # with ui.list():
-        #     for i in range(self.nof_effects):
-        #         container = ui.item()
-        #         container.props('tag="label"')
-        #         with container:
-        #             radio =ui.radio([''], on_change=lambda e, index=i: self.on_channel_change(e, index))
-        #             if i == self.active_effect:
-        #                 radio.value = ''
-
-        #             self.settings_elements[i].create_ui()
-
-        #         self.ui_select.append({"radio": radio, "select": self.settings_elements[i]})
-
-                #self.effects.append(effect)
 
     @ui.refreshable
     def effect_setting_ui(self):
@@ -139,6 +124,12 @@ class EffectManager():
         else:
             raise ValueError("Either new_effect or index must be provided to change the active effect.")
         
+        #change tab to the new active effect
+
+        
+        if hasattr(self, 'tabs') and hasattr(self, 'all_tabs'):
+             self.tabs.value = self.all_tabs[self.active_effect]
+
         self.effects[self.active_effect].start()
         self.effects[self.active_effect].on_input_change = self.IO_manager.update_DMX_channels
         #self.IO_manager.create_frame = self.effects[self.active_effect].run_raw
@@ -176,6 +167,15 @@ class EffectManager():
             else:
                 ui_element["radio"].value = None
 
+    def value_to_effect_idx(self, value):
+        """
+        converts artnet value to an effect instance
+        """
+        nof_effects = len(self.effects)
+        effect_index = int(value / 256 * nof_effects) % nof_effects
+
+        return effect_index
+
     def set_preview_image(self, preview_image: ui.interactive_image) -> None:
         self.preview_image = preview_image
 
@@ -183,13 +183,18 @@ class EffectManager():
         """
         loop called by io manager
         """
+        #check and switch active effect
+        new_effect_index = self.value_to_effect_idx(channels[5])  # Example: using the first channel value to determine effect
+        if new_effect_index != self.active_effect:
+            self.change_active_effect(index=new_effect_index)
+
         self.effects[self.active_effect].update_inputs(channels)
         output = self.effects[self.active_effect].run_raw(channels, last_output)
         
-        # if self.IO_manager.preview_in_window:
-        #     # If a preview image is set, update it with the new frame
-        #     cv2.imshow("Output", self.create_preview_frame())
-        #     cv2.waitKey(1)
+        if self.IO_manager.preview_in_window:
+            # If a preview image is set, update it with the new frame
+            cv2.imshow("Output", self.create_preview_frame())
+            cv2.waitKey(1)
 
         return output
 

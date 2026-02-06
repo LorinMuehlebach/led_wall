@@ -218,7 +218,7 @@ class ArtNetSender:
         """Clean shutdown"""
         logger.info("Shutting down ArtNet sender...")
         self.disconnect_artnet()
-        self.settings_manager.save()
+        #self.settings_manager.save()
         logger.info("Shutdown complete")
 
 
@@ -235,7 +235,7 @@ if __name__ in {"__main__", "__mp_main__"}:
     ui.run(
         title='ArtNet DMX Sender',
         host="0.0.0.0",
-        port=8080,
+        port=8082,
         reload=False,
         dark=True
     )

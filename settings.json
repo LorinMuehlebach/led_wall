@@ -50,7 +50,8 @@
         "framerate": 30,
         "rgbw_leds": true,
         "preview_in_window": false,
-        "input_source": "none",
-        "dmx_address": 1
+        "input_source": "artnet",
+        "dmx_address": 1,
+        "artnet_ip": "192.168.178.100"
     }
 }
