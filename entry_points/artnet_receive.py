@@ -134,10 +134,12 @@ class ArtNetReceiver:
                 if self.channel_labels[i].text != new_text:
                     self.channel_labels[i].text = new_text
                 
-                # Update progress bar
-                new_val = value / 255.0
-                if self.channel_progress_bars[i].value != new_val:
-                    self.channel_progress_bars[i].value = new_val
+                # Update progress bar height (custom div)
+                percentage = (value / 255.0) * 100
+                # Note: We are updating the style directly. To avoid excessive IPC calls if value hasn't changed much,
+                # we could check it, but simply setting style is reasonably efficient in NiceGUI.
+                # Only update if changed? We assume value change triggers this.
+                self.channel_progress_bars[i].style(f'height: {percentage:.1f}%')
             
             # Update status
             if self.packet_counter_label:
