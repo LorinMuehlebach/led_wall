@@ -16,9 +16,11 @@ import numpy as np
 from deffcode import FFdecoder
 import cv2
 import time
+import pathlib
 
 OUTPUT_FRAMERATE = 10  # Set the desired output frame rate
 RESOLUTION = (35*2,80)  # Set the resolution to 80x35
+FILE = pathlib.Path(__file__).parent / "BigBuckBunny_320x180.mp4"
 
 ffparams = {#"-filter:v":f"fps={OUTPUT_FRAMERATE}",
             "-custom_resolution": RESOLUTION # Set custom resolution to 35x80,
@@ -26,7 +28,7 @@ ffparams = {#"-filter:v":f"fps={OUTPUT_FRAMERATE}",
 
 # initialize and formulate the decoder with "0" index source for BGR24 output
 #decoder = FFdecoder("1", frame_format="bgr24", verbose=True).formulate()
-decoder = FFdecoder("BigBuckBunny_320x180.mp4", verbose=True, **ffparams).formulate()
+decoder = FFdecoder(str(FILE), verbose=True, **ffparams).formulate()
 
 ts_last_frame = 0  # timestamp of the last frame
 

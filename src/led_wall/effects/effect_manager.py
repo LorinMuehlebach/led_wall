@@ -73,18 +73,46 @@ class EffectManager():
     def effect_manager_ui(self):
         effects = effects_class.get_effects()
 
-        with ui.list():
+        all_tabs = []
+        with ui.tabs().classes('w-full q-dark') as tabs:
             for i in range(self.nof_effects):
-                container = ui.item()
-                container.props('tag="label"')
-                with container:
-                    radio =ui.radio([''], on_change=lambda e, index=i: self.on_channel_change(e, index))
-                    if i == self.active_effect:
-                        radio.value = ''
+                all_tabs.append(ui.tab(f'{i+1}'))
 
-                    self.settings_elements[i].create_ui()
+        with ui.tab_panels(tabs, value=all_tabs[0]).classes('w-full'):
+            for i in range(self.nof_effects):
+                with ui.tab_panel(all_tabs[i]):
+                    with ui.row().classes('w-full'):
+                        with ui.element("div").classes('min-w-48'):
+                            self.settings_elements[i].create_ui()
+                            
+                            ui.element("div").style('height: 16px')  # Spacer
+                            ui.label(self.effects[i].DESCRIPTION)
+                            ui.element("div").style('height: 16px')  # Spacer
 
-                self.ui_select.append({"radio": radio, "select": self.settings_elements[i]})
+                            with ui.dialog() as dialog, ui.card().classes('w-full max-w-4xl min-h-96').style('display: flex; flex-direction: column;'):
+                                with ui.element("div").classes('flex-grow overflow-auto'):
+                                    self.effects[i].ui_settings()
+                                    #ui.label('Hello world!')
+                                ui.separator()
+                                with ui.row().classes('w-full justify-end'):
+                                    ui.button('Close', on_click=dialog.close)
+
+                            ui.button('Einstellungen', on_click=dialog.open)
+                        with ui.element("div").classes('flex-grow'):
+                            self.effects[i].ui_show()
+
+        # with ui.list():
+        #     for i in range(self.nof_effects):
+        #         container = ui.item()
+        #         container.props('tag="label"')
+        #         with container:
+        #             radio =ui.radio([''], on_change=lambda e, index=i: self.on_channel_change(e, index))
+        #             if i == self.active_effect:
+        #                 radio.value = ''
+
+        #             self.settings_elements[i].create_ui()
+
+        #         self.ui_select.append({"radio": radio, "select": self.settings_elements[i]})
 
                 #self.effects.append(effect)
 

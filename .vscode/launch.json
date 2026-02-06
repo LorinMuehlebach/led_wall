@@ -11,6 +11,15 @@
             "program": "${file}",
             "console": "integratedTerminal",
             "justMyCode": false
+        },
+        {
+            "name": "Main",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/entry_points/main.py",
+            "console": "integratedTerminal",
+            "justMyCode": false
         }
+
     ]
 }

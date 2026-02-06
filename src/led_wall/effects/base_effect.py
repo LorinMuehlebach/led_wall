@@ -62,7 +62,7 @@ class BaseEffect:
         """
         create a settings page for the effect
         """
-        # self.settings_elements: list[SettingsElement] = []
+        self.settings_elements: list[SettingsElement] = []
         # self.settings_elements.append(SettingsElement(
         #     label='Convert to RGBW',
         #     input=ui.switch,
@@ -118,7 +118,7 @@ class BaseEffect:
 
         self.ui_inputs = []
 
-        ui.label(self.DESCRIPTION)
+        #ui.label(self.DESCRIPTION)
         with ui.row().classes('w-full'):
             for input_element in self.inputs:
                 with ui.column():
@@ -165,7 +165,7 @@ if __name__ in {"__main__", "__mp_main__"}:
 
         effect.on_input_change = lambda channels: dmx_inputs.update_sliders(channels)
 
-        io_manager = IO_Manager(resolution=(35, 60), dimensions=(6, 3), dmx_inputs=dmx_inputs, framerate=30, RGBW=True,preview_in_window=True)
+        io_manager = IO_Manager(settings_manager, framerate=30, preview_in_window=True)
 
         io_manager.init_preview(preview_image=preview_image)
 

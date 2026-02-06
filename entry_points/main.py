@@ -1,5 +1,8 @@
 import os
-from nicegui import ui, app
+import signal
+import sys
+import asyncio
+from nicegui import ui, app, Client, core
 import logging
 
 from led_wall.ui.logging_config import getLogger
@@ -37,13 +40,13 @@ effect_manager = None
 @ui.refreshable
 def main_window(effect_manager):
     if effect_manager:
-        with ui.row().classes('flex w-full'):
-            with ui.element("div").classes('max-w-md'):
+        with ui.row().classes('w-full grid grid-flow-col grid-col-4'):
+            with ui.element("div").classes('col-span-1'):
                 ui.label("Vorschau").classes('text-2xl font-bold mb-4')
                 preview_image = ui.interactive_image().classes('w-full max-w-400')
                 effect_manager.init_preview(preview_image)
 
-            with ui.element("div").classes('max-w-md'):
+            with ui.element("div").classes('col-span-3'):
                 ui.label("Effekte").classes('text-2xl font-bold mb-4')
                 effect_manager.effect_manager_ui()
 
@@ -78,6 +81,68 @@ def preset_change(e) -> None:
 
     effect_manager.IO_manager.start_loop()
 
+# Flag to prevent multiple shutdowns
+_shutdown_in_progress = False
+
+async def disconnect_all_clients():
+    """Disconnect all clients from the server."""
+    for client_id in list(Client.instances.keys()):
+        try:
+            await core.sio.disconnect(client_id)
+        except Exception as e:
+            logger.error(f"Error disconnecting client {client_id}: {e}")
+
+def shutdown_handler(signum, frame):
+    """Handle graceful shutdown on Ctrl+C"""
+    global _shutdown_in_progress
+    
+    if _shutdown_in_progress:
+        return
+    
+    _shutdown_in_progress = True
+    logger.info("Received shutdown signal, cleaning up...")
+    
+    # Disconnect all NiceGUI clients
+    try:
+        loop = asyncio.get_event_loop()
+        if loop.is_running():
+            asyncio.create_task(disconnect_all_clients())
+        logger.info("Disconnecting clients...")
+    except Exception as e:
+        logger.error(f"Error disconnecting clients: {e}")
+    
+    # Stop the active effect
+    if effect_manager and hasattr(effect_manager, 'effects'):
+        try:
+            effect_manager.effects[effect_manager.active_effect].stop()
+            logger.info("Stopped active effect")
+        except Exception as e:
+            logger.error(f"Error stopping effect: {e}")
+    
+    # Stop the IO manager loop
+    if io_manager:
+        try:
+            io_manager.stop_loop()
+            logger.info("Stopped IO manager loop")
+        except Exception as e:
+            logger.error(f"Error stopping IO manager: {e}")
+    
+    # Save settings
+    try:
+        settings_manager.save()
+        logger.info("Settings saved")
+    except Exception as e:
+        logger.error(f"Error saving settings: {e}")
+    
+    logger.info("Shutdown complete")
+    
+    if signum is not None:  # Only exit if called from signal handler
+        sys.exit(0)
+
+# Register signal handler for clean shutdown
+signal.signal(signal.SIGINT, shutdown_handler)
+signal.signal(signal.SIGTERM, shutdown_handler)
+
 if app_settings.settings["selected_preset"] not in presets:
     #should never happen maybe manual edits to settings file
     presets.append(app_settings.settings["selected_preset"])
@@ -98,6 +163,7 @@ setting_elements = [
 
 if 'NICEGUI_STARTED' not in os.environ:
     app.on_startup(effect_manager.setup_preview)
+    app.on_shutdown(lambda: shutdown_handler(None, None))
     os.environ["NICEGUI_STARTED"] = "true" #needed so it only starts once
 
 #main window structuring

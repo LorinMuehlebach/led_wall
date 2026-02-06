@@ -145,6 +145,7 @@ class IO_Manager():
         self.create_frame = None #callback function to the selected effect
 
         self.ts_last_frame = 0
+        self.run = False
         self.run_thread = Thread(target=self.run_loop, daemon=True)
 
     @ui.refreshable
@@ -167,10 +168,13 @@ class IO_Manager():
 
     def stop_loop(self) -> None:
         self.run = False
-        try:
-            self.run_thread.join()
-        except Exception as e:
-            print(f"Error stopping loop: {e}")
+        if self.run_thread.is_alive():
+            try:
+                self.run_thread.join(timeout=2.0)
+                if self.run_thread.is_alive():
+                    print("Warning: Thread did not stop within timeout")
+            except Exception as e:
+                print(f"Error stopping loop: {e}")
 
     def __del__(self):
         self.stop_loop()

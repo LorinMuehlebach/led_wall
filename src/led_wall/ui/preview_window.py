@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 import base64
-import signal
 import time
 from typing import Callable
 
@@ -66,12 +65,6 @@ def preview_setup(video_image:ui.interactive_image,webcam:bool = False,get_previ
         for client_id in Client.instances:
             await core.sio.disconnect(client_id)
 
-    def handle_sigint(signum, frame) -> None:
-        # `disconnect` is async, so it must be called from the event loop; we use `ui.timer` to do so.
-        ui.timer(0.1, disconnect, once=True)
-        # Delay the default handler to allow the disconnect to complete.
-        ui.timer(1, lambda: signal.default_int_handler(signum, frame), once=True)
-
     async def cleanup() -> None:
         # This prevents ugly stack traces when auto-reloading on code change,
         # because otherwise disconnected clients try to reconnect to the newly started server.
@@ -82,9 +75,6 @@ def preview_setup(video_image:ui.interactive_image,webcam:bool = False,get_previ
             video_capture.release()
 
     app.on_shutdown(cleanup)
-    # We also need to disconnect clients when the app is stopped with Ctrl+C,
-    # because otherwise they will keep requesting images which lead to unfinished subprocesses blocking the shutdown.
-    signal.signal(signal.SIGINT, handle_sigint)
 
 # All the setup is only done when the server starts. This avoids the webcam being accessed
 # by the auto-reload main process (see https://github.com/zauberzeug/nicegui/discussions/2321).
