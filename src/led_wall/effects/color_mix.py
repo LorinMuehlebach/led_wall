@@ -6,7 +6,7 @@ from nicegui import ui
 from led_wall.effects.base_effect import BaseEffect
 from led_wall.datatypes import RGBW_Color, Fader
 from led_wall.ui.settings_manager import SettingsElement
-from led_wall.ui.media_upload import MediaUpload
+from led_wall.ui.media_manager import MediaManager
 
 logger = logging.getLogger("utils")
 
@@ -254,7 +254,7 @@ class ColorMix(BaseEffect):
                     element.create_ui()
 
         # Initialize and create the reusable dialog
-        media_dialog = MediaUpload(self.settings_manager, resolution=self.resolution, grayscale=True)
+        media_dialog = MediaManager(self.settings_manager, resolution=self.resolution, grayscale=True)
         media_dialog.create_ui()
 
             #ui.button('Adjust Image Mapping', on_click=dialog.open, icon='straighten').classes('w-full mt-2')

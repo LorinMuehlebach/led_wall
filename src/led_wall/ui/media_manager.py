@@ -13,7 +13,7 @@ from led_wall.ui.settings_manager import SettingsManager, SettingsElement
 
 logger = logging.getLogger("utils")
 
-class MediaUpload:
+class MediaManager:
     """
     A reusable dialog for uploading, selecting, and mapping images for effects.
     """
@@ -418,7 +418,7 @@ if __name__ in {"__main__", "__mp_main__"}:
         ui.label('Media Upload Dialog Test').classes('text-2xl mb-4')
         
         # Initialize the dialog with test resolution and dimensions
-        media_dialog = MediaUpload(settings_manager, resolution=RESOLUTION, dimensions=DIMENSIONS, grayscale=True)
+        media_dialog = MediaManager(settings_manager, resolution=RESOLUTION, dimensions=DIMENSIONS, grayscale=True)
         
         media_dialog.create_ui()  # Create the UI elements before creating the dialog to ensure they are initialized
         
