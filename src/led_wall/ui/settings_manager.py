@@ -84,6 +84,26 @@ class SettingsManager:
         """
         return self.settings.get(key, None)
 
+    def update_setting(self, setting_id: str, value) -> None:
+        """
+        Updates a setting directly by its ID.
+        Handles ValueChangeEventArguments and triggers appropriate save mechanism.
+        """
+        if isinstance(value, ValueChangeEventArguments):
+            value = value.value
+        
+        # Try to find the corresponding SettingsElement
+        element = next((e for e in self.settings_elements if e.settings_id == setting_id), None)
+        if element:
+            self.settings_change(element, value)
+        else:
+            # Fallback if element not found: update dict directly and trigger save
+            self.settings[setting_id] = value
+            if self.parent:
+                self.parent.settings_change(self, self.settings)
+            elif self.path:
+                self.save_with_timeout()
+
     def save_with_timeout(self) -> None:
         """
         Saves the file if no changes after the SAVE_TIMEOUT.

@@ -32,6 +32,8 @@ class ColorMix(BaseEffect):
         self.inputs['color2'] = RGBW_Color([255, 255, 255, 255]) # 4 channels
         self.inputs['blend'] = Fader(127) # 1 channel - shifts the blend balance
         self.inputs['noise_scale'] = Fader(127) # 1 channel - scale/frequency of the noise
+
+        self.media_manager = MediaManager(settings_manager, resolution=resolution, dimensions=dimensions, grayscale=True)
         
         self.res_x, self.res_y = self.resolution
         self._noise_pattern = None
@@ -244,6 +246,9 @@ class ColorMix(BaseEffect):
         """
         Custom settings UI with upload and mapping dialog.
         """
+
+        self.preview = ui.image('').classes('w-full object-contain mb-2 q-pa-md')
+        
         # Mapping setting IDs to be shown in the dialog
         mapping_ids = ['noise_image_mapping', 'noise_image_offset_x', 'noise_image_offset_y', 'noise_image_scale', 'noise_image_file']
         
@@ -255,6 +260,7 @@ class ColorMix(BaseEffect):
 
         # Initialize and create the reusable dialog
         media_dialog = MediaManager(self.settings_manager, resolution=self.resolution, grayscale=True)
-        media_dialog.create_ui()
+        media_dialog.create_ui(add_preview=False) # Create the UI elements but not the preview image, as it will be shown in the dialog
+        media_dialog.preview = self.preview # Link the preview in the dialog to the one in this settings page
 
             #ui.button('Adjust Image Mapping', on_click=dialog.open, icon='straighten').classes('w-full mt-2')

@@ -14,11 +14,12 @@
                 "convert_to_rgbw_2": false,
                 "speed": 86,
                 "noise_pattern_type": 3,
-                "noise_image_file": "20260111_0334.JPG",
+                "noise_image_file": "20260111_0001.JPG",
                 "noise_image_mapping": "Verh\u00e4ltniss",
                 "noise_image_offset_x": 0.0,
                 "noise_image_offset_y": 0.0,
-                "noise_image_scale": 1.0
+                "noise_image_scale": 1.0,
+                "noise_image_rotation": 50.0
             },
             "effect_settings_1": {
                 "convert_to_rgbw": false,

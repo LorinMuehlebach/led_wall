@@ -75,7 +75,7 @@ class MediaManager:
                 # If this was the selected image, clear the selection
                 current = self.settings_manager.get_setting(self.image_setting_id)
                 if current == filename:
-                    self._on_setting_changed(self.image_setting_id, None)
+                    self.settings_manager.update_setting(self.image_setting_id, None)
                     asyncio.create_task(self._load_and_update())
                 # Refresh the gallery
                 if self.gallery_container:
@@ -85,7 +85,7 @@ class MediaManager:
     
     def _select_image(self, filename):
         """Select an image from the gallery."""
-        self._on_setting_changed(self.image_setting_id, filename)
+        self.settings_manager.update_setting(self.image_setting_id, filename)
         if self.current_image_label:
             self.current_image_label.text = f'Current: {filename}'
         asyncio.create_task(self._load_and_update())
@@ -292,36 +292,13 @@ class MediaManager:
             logger.error(f"Error generating preview from memory: {e}")
             self.preview.set_source('')
 
-    def _on_setting_changed(self, setting_id: str, value):
-        """
-        Updates the settings manager and handles special cases like updating the local UI.
-        """
-        if isinstance(value, ValueChangeEventArguments):
-            value = value.value
-        
-        # We need a SettingsElement to pass to settings_change, 
-        # but since we are modifying values directly from the dialog, 
-        # we can pass the manager's cached objects or look them up.
-        # For simplicity and robustness, we use a mock object or find the original.
-        
-        element = next((e for e in self.settings_manager.settings_elements if e.settings_id == setting_id), None)
-        if element:
-            self.settings_manager.settings_change(element, value)
-        else:
-            # Fallback if element not found: update dict directly and trigger save
-            self.settings_manager.settings[setting_id] = value
-            if self.settings_manager.parent:
-                 self.settings_manager.parent.settings_change(self.settings_manager, self.settings_manager.settings)
-            elif self.settings_manager.path:
-                 self.settings_manager.save_with_timeout()
-
     def create_dialog(self):
         with ui.dialog() as self.dialog, ui.card().classes('w-full max-w-lg'):
             self.create_ui()
 
         return self.dialog
     
-    def create_ui(self,dialog=None):
+    def create_ui(self,dialog=None,add_preview=True):
         """
         Creates the UI elements for the media upload and mapping dialog.
         """
@@ -337,8 +314,9 @@ class MediaManager:
             
             ui.button('Select Image', icon='photo_library', on_click=self._open_select_dialog).classes('w-full mb-4')
 
-            # Preview of the current image
-            self.preview = ui.image('').classes('w-full object-contain mb-2 q-pa-md')
+            if add_preview:
+                # Preview of the current image
+                self.preview_image_ui()
             
             # Warning label for resolution mismatch
             self.warning_label = ui.label('').classes('text-orange-500 text-sm font-semibold')
@@ -354,7 +332,7 @@ class MediaManager:
                     current = 1.0 if 'scale' in setting_id else 0.0
                 
                 def handle_change(e):
-                    self._on_setting_changed(setting_id, e.value)
+                    self.settings_manager.update_setting(setting_id, e.value)
                     self._request_preview_update()
 
                 ui.number(label=label, value=current, min=min_val, max=max_val, step=step,
@@ -369,13 +347,17 @@ class MediaManager:
                 ui.label('Mode').classes('w-24')
                 current_mode = self.settings_manager.get_setting(self.mapping_setting_id) or 'Verhältniss'
                 ui.select(['Verhältniss', 'Pixels'], value=current_mode,
-                            on_change=lambda e: [self._on_setting_changed(self.mapping_setting_id, e.value), self._request_preview_update()]).classes('flex-grow')
+                            on_change=lambda e: [self.settings_manager.update_setting(self.mapping_setting_id, e.value), self._request_preview_update()]).classes('flex-grow')
 
             if dialog is not None:
                 ui.button('Speichern', on_click=dialog.close).classes('mt-4 self-end')
 
             self._load_image()  # Load image into memory immediately to speed up first preview
             self._update_preview()  # Load initial preview if there's already a selected image
+
+    def preview_image_ui(self):
+        # Preview of the current image
+        self.preview = ui.image('').classes('w-full object-contain mb-2 q-pa-md')
 
 
 def create_preview_frame(frame: np.ndarray, resolution: tuple[int, int], preview_resolution: tuple[int, int], dimensions: tuple[float, float]) -> Image.Image:
