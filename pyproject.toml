@@ -14,6 +14,7 @@ dependencies = [
     "nicegui>=2.22.1",
     "nicegui-react>=0.1.7",
     "opencv-python>=4.12.0.88",
+    "pillow>=12.1.0",
     "pyartnet>=1.0.1",
     "pydmxcontrol>=2.0.0",
     "pyserial>=3.5",

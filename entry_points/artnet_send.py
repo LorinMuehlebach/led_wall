@@ -4,7 +4,7 @@ ArtNet Sender - Send DMX channels via ArtNet
 This application provides a UI to control DMX channels and send them to an ArtNet node.
 """
 import logging
-from stupidArtnet import StupidArtnet
+from led_wall.MultiUniverseArtnet import StupidArtnet
 from nicegui import ui, app
 
 from led_wall.ui.dmx_channels import DMX_channels_Input
@@ -128,10 +128,10 @@ class ArtNetSender:
                 return
             
             # Create StupidArtnet instance
-            # stupidArtnet takes: target_ip, universe, packet_size, fps, even_packet_size, broadcast
+            # stupidArtnet takes: target_ip, universes, packet_size, fps, even_packet_size, broadcast
             self.artnet = StupidArtnet(
                 target_ip=self.artnet_ip,
-                universe=self.universe,
+                universes=[self.universe],
                 packet_size=512,  # Standard DMX packet size
                 fps=self.fps,
                 even_packet_size=True,

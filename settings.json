@@ -1,43 +1,57 @@
 {
     "presets": {
         "Show1": {
-            "active_effect_0": "Single Color",
-            "active_effect_1": "Test Effect",
-            "active_effect_2": "Test Effect",
-            "active_effect_3": "Single Color",
-            "active_effect_4": "Single Color",
-            "active_effect_5": "Single Color",
+            "active_effect_0": "Gradient",
+            "active_effect_1": "Gradient",
+            "active_effect_2": "Color Mix",
+            "active_effect_3": "Test Effect",
+            "active_effect_4": "Test Effect",
+            "active_effect_5": "Gradient",
             "active_effect_6": "Single Color",
             "active_effect_7": "Single Color",
             "effect_settings_2": {
                 "convert_to_rgbw": false,
                 "convert_to_rgbw_2": false,
-                "speed": 86
+                "speed": 86,
+                "noise_pattern_type": 3,
+                "noise_image_file": "20260111_0334.JPG",
+                "noise_image_mapping": "Verh\u00e4ltniss",
+                "noise_image_offset_x": 0.0,
+                "noise_image_offset_y": 0.0,
+                "noise_image_scale": 1.0
             },
             "effect_settings_1": {
                 "convert_to_rgbw": false,
                 "convert_to_rgbw_2": true,
-                "speed": 46
+                "speed": 46,
+                "noise_pattern_type": 1,
+                "noise_image_file": null,
+                "noise_image_mapping": "Verh\u00e4ltniss",
+                "noise_image_offset_x": 0.0,
+                "noise_image_offset_y": 0.0,
+                "noise_image_scale": 1.0
             },
             "effect_settings_0": {
                 "convert_to_rgbw": true,
                 "convert_to_rgbw_2": false,
-                "speed": 50
+                "speed": 50,
+                "noise_pattern_type": 2,
+                "noise_image_file": null,
+                "noise_image_mapping": "Pixels",
+                "noise_image_offset_x": 0.0,
+                "noise_image_offset_y": 0.0,
+                "noise_image_scale": 1.0
             }
         },
         "Show2": {
-            "active_effect_0": "Single Color",
-            "active_effect_1": "Single Color",
-            "active_effect_2": "Single Color",
-            "active_effect_3": "Single Color",
-            "active_effect_4": "Single Color",
-            "active_effect_5": "Single Color",
-            "active_effect_6": "Single Color",
-            "active_effect_7": "Single Color",
-            "effect_settings_0": {
-                "convert_to_rgbw": true,
-                "convert_to_rgbw_2": true
-            }
+            "active_effect_0": "Test Effect",
+            "active_effect_1": "Gradient",
+            "active_effect_2": "Gradient",
+            "active_effect_3": "Gradient",
+            "active_effect_4": "Gradient",
+            "active_effect_5": "Gradient",
+            "active_effect_6": "Gradient",
+            "active_effect_7": "Gradient"
         }
     },
     "main_settings": {
@@ -53,9 +67,16 @@
         "preview_in_window": false,
         "input_source": "artnet",
         "dmx_address": 1,
-        "artnet_ip": "192.168.178.100",
+        "artnet_ip": "192.168.1.18",
         "input_dmx_address": 1.0,
         "input_universe": 0.0,
-        "input_port": 6454
+        "input_port": 6454,
+        "artnet_port": 6454.0,
+        "addressing_direction": "vertical",
+        "reverse_addressing": true,
+        "consecutive_universes": 5.0,
+        "skip_universes": 3,
+        "device_order_reversed": true,
+        "device_universes": 8.0
     }
 }

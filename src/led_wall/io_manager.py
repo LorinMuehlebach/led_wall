@@ -3,10 +3,12 @@ import numpy as np
 import cv2
 from functools import partial
 from threading import Thread
+from logging import getLogger
 
 import asyncio
 #from pyartnet import ArtNetNode
-from stupidArtnet import StupidArtnet, StupidArtnetServer
+from led_wall.MultiUniverseArtnet import StupidArtnet
+from stupidArtnet import StupidArtnetServer
 
 
 from nicegui import ui
@@ -15,6 +17,8 @@ from led_wall.ui.settings_manager import SettingsElement, SettingsManager
 from led_wall.utils import Color
 from led_wall.ui.dmx_channels import DMX_channels_Input
 from led_wall.ui.preview_window import preview_setup
+
+logger = getLogger(__name__)
 
 class IO_Manager():
     """
@@ -37,7 +41,7 @@ class IO_Manager():
 
         """
         self.settings_manager = SettingsManager(parent=settings_manager, name="io_settings")
-        self.dmx_channel_inputs = DMX_channels_Input(10)
+        self.dmx_channel_inputs = DMX_channels_Input(14)
         self.input_source = "artnet" #can be "artnet", "dmx" or "none"
 
         #artnet input
@@ -58,7 +62,8 @@ class IO_Manager():
         self.addressing_direction = 'vertical' #can be 'horizontal' or 'vertical'
         self.reverse_addressing = True
         self.consecutive_universes = 5
-        self.skip_universes = 3
+        self.device_order_reversed = True
+        self.device_universes = 8
 
         self.settings_menu = {
             "Display": [
@@ -199,7 +204,15 @@ class IO_Manager():
                     manager=self.settings_manager
                 ),
                 SettingsElement(
-                    label='consecutive universes',
+                    label='device order reversed',
+                    input=ui.switch,
+                    settings_id='device_order_reversed',
+                    default_value=self.device_order_reversed,
+                    on_change=lambda e, self=self: setattr(self, 'device_order_reversed', e.value),
+                    manager=self.settings_manager
+                ),
+                SettingsElement(
+                    label='device universes',
                     input=ui.number,
                     settings_id='consecutive_universes',
                     default_value=self.consecutive_universes,
@@ -208,11 +221,11 @@ class IO_Manager():
                     manager=self.settings_manager
                 ),
                 SettingsElement(
-                    label='skip universes',
+                    label='device universes',
                     input=ui.number,
-                    settings_id='skip_universes',
-                    default_value=self.skip_universes,
-                    on_change=lambda e, self=self: (setattr(self, 'skip_universes', int(e.value) if e.value is not None else self.skip_universes), self.output_artnet_init()),
+                    settings_id='device_universes',
+                    default_value=self.device_universes,
+                        on_change=lambda e, self=self: (setattr(self, 'device_universes', int(e.value) if e.value is not None else self.device_universes), self.output_artnet_init()),
                     precision=0,
                     manager=self.settings_manager
                 ),
@@ -256,6 +269,11 @@ class IO_Manager():
 
     def start_loop(self) -> None:
         self.run = True
+        if self.run_thread.is_alive():
+            self.run = False
+            self.run_thread.join(timeout=2.0)  # Wait for the thread to finish if it's already running
+            logger.warning("Previous loop thread was still running. Restarted the loop.")
+
         self.run_thread.start()
 
     def stop_loop(self) -> None:
@@ -265,10 +283,9 @@ class IO_Manager():
             del self.artnet_server
             self.artnet_server = None
         
-        if hasattr(self, 'artnet_senders'):
-            for sender in self.artnet_senders:
-                sender.stop()
-            del self.artnet_senders
+        if hasattr(self, 'artnet_sender'):
+            self.artnet_sender.stop()
+            del self.artnet_sender
 
         if self.run_thread.is_alive():
             try:
@@ -299,6 +316,9 @@ class IO_Manager():
             self.output_buffer = frame
 
             self.update_artnet_output()
+
+    def get_channels(self):
+        return self.dmx_channel_inputs.get_channels()
     
     def input_init(self, dmx_address:int=None):
         if dmx_address is not None:
@@ -344,70 +364,93 @@ class IO_Manager():
             return
 
         # Clean up existing senders
-        if hasattr(self, 'artnet_senders'):
-            for sender in self.artnet_senders:
-                sender.stop()
-            del self.artnet_senders
+        if hasattr(self, 'artnet_sender'):
+            self.artnet_sender.stop()
+            del self.artnet_sender
         
-        self.artnet_senders = []
-
         # Number of segments (columns or rows) that correspond to universes
         num_segments = self.resolution[0] if self.addressing_direction == 'vertical' else self.resolution[1]
-        
+        packets_per_universe = self.pixel_channels * (self.resolution[1] if self.addressing_direction == 'vertical' else self.resolution[0])
+
         current_universe = 0
         consecutive_count = 0
         
-        for _ in range(num_segments):
-            sender = StupidArtnet(
-                target_ip=self.output_artnet_ip,
-                universe=current_universe,
-                packet_size=512,
-                fps=self.framerate,
-                port=self.output_artnet_port
-            )
-            sender.start()
-            self.artnet_senders.append(sender)
+        all_universes = []
+        self.segment_to_universe = {}
+
+        for i in range(num_segments):
+            all_universes.append(current_universe)
+            self.segment_to_universe[i] = current_universe
             
             consecutive_count += 1
             if consecutive_count >= self.consecutive_universes:
-                current_universe += self.skip_universes + 1
+                current_universe += (self.device_universes - self.consecutive_universes) + 1
                 consecutive_count = 0
             else:
                 current_universe += 1
+        
+        self.artnet_sender = StupidArtnet(
+            target_ip=self.output_artnet_ip,
+            universes=all_universes,
+            packet_size=packets_per_universe,
+            fps=self.framerate,
+            port=self.output_artnet_port
+        )
+        self.artnet_sender.start()
 
     def update_artnet_output(self):
-        if not hasattr(self, 'artnet_senders') or not self.artnet_senders:
+        if not hasattr(self, 'artnet_sender') or not self.artnet_sender:
             return
 
         width, height = self.resolution
         
         if self.addressing_direction == 'vertical':
             for x in range(width):
-                if x >= len(self.artnet_senders):
+                if x >= len(self.segment_to_universe):
                     break
                 
-                # Get column data (width, height, channels)
-                segment_data = self.output_buffer[x, :, :]
+                # Apply device order mapping if needed (reverses blocks of columns)
+                source_x = x
+                if self.device_order_reversed and self.consecutive_universes > 0:
+                    num_blocks = width // self.consecutive_universes
+                    block_idx = x // self.consecutive_universes
+                    if block_idx < num_blocks:
+                        idx_in_block = x % self.consecutive_universes
+                        reversed_block_idx = (num_blocks - 1) - block_idx
+                        source_x = reversed_block_idx * self.consecutive_universes + idx_in_block
+
+                # Get column data
+                segment_data = self.output_buffer[source_x, :, :]
                 
                 if self.reverse_addressing:
                     segment_data = np.flip(segment_data, axis=0)
                 
                 # Flatten data to list of ints for StupidArtnet
                 dmx_values = segment_data.flatten().tolist()
-                self.artnet_senders[x].set(dmx_values)
+                self.artnet_sender.set(dmx_values, universe=self.segment_to_universe[x])
         else:
             for y in range(height):
-                if y >= len(self.artnet_senders):
+                if y >= len(self.segment_to_universe):
                     break
                 
+                # Apply device order mapping if needed (reverses blocks of rows)
+                source_y = y
+                if self.device_order_reversed and self.consecutive_universes > 0:
+                    num_blocks = height // self.consecutive_universes
+                    block_idx = y // self.consecutive_universes
+                    if block_idx < num_blocks:
+                        idx_in_block = y % self.consecutive_universes
+                        reversed_block_idx = (num_blocks - 1) - block_idx
+                        source_y = reversed_block_idx * self.consecutive_universes + idx_in_block
+
                 # Get row data
-                segment_data = self.output_buffer[:, y, :]
+                segment_data = self.output_buffer[:, source_y, :]
                 
                 if self.reverse_addressing:
                     segment_data = np.flip(segment_data, axis=0) # flip horizontally
                 
                 dmx_values = segment_data.flatten().tolist()
-                self.artnet_senders[y].set(dmx_values)
+                self.artnet_sender.set(dmx_values, universe=self.segment_to_universe[y])
 
     def update_DMX_channels(self, channels):
         self.dmx_channel_inputs.update_sliders(channels)

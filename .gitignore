@@ -1,4 +1,5 @@
 settings.json
+media/
 
 __pycache__/
 *.py[cd]

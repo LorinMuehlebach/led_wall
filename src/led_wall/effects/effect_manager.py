@@ -74,32 +74,32 @@ class EffectManager():
         effects = effects_class.get_effects()
 
         self.all_tabs = []
-        with ui.tabs().classes('w-full q-dark') as self.tabs:
+        with ui.tabs().classes('w-full q-dark').on('update:model-value', self.on_tab_change) as self.tabs:
             for i in range(self.nof_effects):
                 self.all_tabs.append(ui.tab(f'{i+1}'))
 
         with ui.tab_panels(self.tabs, value=self.all_tabs[self.active_effect]).classes('w-full'):
-            for i in range(self.nof_effects):
-                with ui.tab_panel(self.all_tabs[i]):
+            for tab_idx in range(self.nof_effects):
+                with ui.tab_panel(self.all_tabs[tab_idx]):
                     with ui.row().classes('w-full'):
-                        with ui.element("div").classes('min-w-48'):
-                            self.settings_elements[i].create_ui()
+                        with ui.element("div").classes('min-w-48').style('max-width: 180px').style('max-width: 180px'):
+                            self.settings_elements[tab_idx].create_ui()
                             
                             ui.element("div").style('height: 16px')  # Spacer
-                            ui.label(self.effects[i].DESCRIPTION)
+                            ui.label(self.effects[tab_idx].DESCRIPTION)
                             ui.element("div").style('height: 16px')  # Spacer
 
                             with ui.dialog() as dialog, ui.card().classes('w-full max-w-4xl min-h-96').style('display: flex; flex-direction: column;'):
                                 with ui.element("div").classes('flex-grow overflow-auto'):
-                                    self.effects[i].ui_settings()
-                                    #ui.label('Hello world!')
+                                    self.effects[tab_idx].ui_settings()
                                 ui.separator()
                                 with ui.row().classes('w-full justify-end'):
                                     ui.button('Close', on_click=dialog.close)
 
                             ui.button('Einstellungen', on_click=dialog.open)
                         with ui.element("div").classes('flex-grow'):
-                            self.effects[i].ui_show()
+                            self.effects[tab_idx].ui_show()        
+
 
     @ui.refreshable
     def effect_setting_ui(self):
@@ -108,6 +108,22 @@ class EffectManager():
     @ui.refreshable
     def effect_show_ui(self):
         self.effects[self.active_effect].ui_show()
+
+    def on_tab_change(self, event):
+        """
+        Called when a tab is changed in the tab_panels.
+        Updates the active effect based on the selected tab.
+        """
+        if self.status == "setup":
+            return
+        
+        # Find the index of the selected tab
+        tab_index = int(event.args)-1  # Convert from 1-based to 0-based index
+        channels = self.IO_manager.get_channels()
+        slider_tab_idx = self.value_to_effect_idx(channels[5])
+        if tab_index != slider_tab_idx:
+            channels[5] = int(tab_index / self.nof_effects * 256)  # Update the channel value to reflect the new effect
+            self.IO_manager.update_DMX_channels(channels)  # Trigger an update to apply the new effect immediately
 
     def change_active_effect(self,new_effect=None,index=None):
         if self.status == "setup":
@@ -124,15 +140,10 @@ class EffectManager():
         else:
             raise ValueError("Either new_effect or index must be provided to change the active effect.")
         
-        #change tab to the new active effect
-
-        
-        if hasattr(self, 'tabs') and hasattr(self, 'all_tabs'):
-             self.tabs.value = self.all_tabs[self.active_effect]
-
         self.effects[self.active_effect].start()
         self.effects[self.active_effect].on_input_change = self.IO_manager.update_DMX_channels
-        #self.IO_manager.create_frame = self.effects[self.active_effect].run_raw
+
+        #TODO not needed anymore
         self.effect_setting_ui.refresh()
         self.effect_show_ui.refresh()
 
@@ -147,10 +158,8 @@ class EffectManager():
         effect_cls = effects_class.get_effect_class(event.value)
         new_effect = effect_cls(self.resolution, self.dimension, self.rgbw, self.effect_setting_managers[index])
 
-        if self.active_effect == index:
-            self.change_active_effect(new_effect=new_effect)
-
         self.effects[index] = new_effect
+        self.effect_manager_ui.refresh()
 
     def on_channel_change(self, event, index):
         if event is not None and event.value is None:

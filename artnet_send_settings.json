@@ -1,6 +1,6 @@
 {
     "artnet_ip": "127.0.0.1",
-    "universe": 0,
+    "universe": 0.0,
     "start_channel": 1,
     "fps": 30.0
 }

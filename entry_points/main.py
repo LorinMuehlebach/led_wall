@@ -34,6 +34,9 @@ presets = [key for key in settings_manager.settings["presets"]]
 #handle all Input & Outputs
 io_manager = IO_Manager(settings_manager=settings_manager)
 
+# Serve media files
+app.add_static_files('/media', 'media')
+
 effect_manager = None
 
 #define main window ui
@@ -56,8 +59,6 @@ def effect_settings_ui(effect_manager):
 
 @ui.refreshable
 def show_ui(effect_manager, io_manager):
-    effect_manager.effect_show_ui()
-
     ui.label("DMX channels").classes('text-1xl font-bold mb-4')
     io_manager.dmx_channel_ui()  # Create the settings UI for DMX inputs
 
