@@ -66,6 +66,8 @@ class EffectManager():
 
         self.status = "ready"
 
+        self.change_active_effect(index=self.active_effect)
+
         self.IO_manager.create_frame = self.run_loop
 
 

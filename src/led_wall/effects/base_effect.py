@@ -120,7 +120,10 @@ class BaseEffect:
 
         #ui.label(self.DESCRIPTION)
         with ui.row().classes('w-full'):
-            for input_element in self.inputs:
+            for idx, input_element in enumerate(self.inputs):
+                if idx == 2:
+                    continue #skip "mode" input as it is only used to select the effect but not as an actual input for the effect
+                
                 with ui.column():
                     element_name = input_element.replace('_', ' ')
                     ui.label(element_name).classes('text-lg font-bold')
