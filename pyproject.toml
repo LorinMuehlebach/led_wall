@@ -17,6 +17,7 @@ dependencies = [
     "pillow>=12.1.0",
     "pyartnet>=1.0.1",
     "pydmxcontrol>=2.0.0",
+    "pyinstaller>=6.18.0",
     "pyserial>=3.5",
     "pywebview>=6.0",
     "stupidartnet>=1.4.0",

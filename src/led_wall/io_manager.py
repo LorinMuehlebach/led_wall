@@ -2,7 +2,7 @@ import time
 import numpy as np
 import cv2
 from functools import partial
-from threading import Thread, current_thread
+from threading import Thread, current_thread, active_count
 from logging import getLogger
 
 import asyncio
@@ -341,6 +341,7 @@ class IO_Manager():
         """
         loop which runs at the defined framerate
         """
+        print("IO loop started.")
         while self.run:
             while time.time() - self.ts_last_frame < 1 / self.framerate:
                 # wait until the next frame is due
@@ -427,7 +428,8 @@ class IO_Manager():
             fps=self.framerate,
             port=self.output_artnet_port
         )
-        self.artnet_sender.start()
+        #not needed we will call show ourselves
+        #self.artnet_sender.start()
 
 
     last_pid = None
@@ -490,6 +492,8 @@ class IO_Manager():
                 
                 dmx_values = segment_data.flatten().tolist()
                 self.artnet_sender.set(dmx_values, universe=self.segment_to_universe[y])
+
+        self.artnet_sender.show()
 
     def update_DMX_channels(self, channels):
         self.dmx_channel_inputs.update_sliders(channels)

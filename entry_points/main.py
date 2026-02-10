@@ -3,6 +3,8 @@ import signal
 import sys
 import asyncio
 import logging
+import multiprocessing
+import socket
 
 from led_wall.ui.logging_config import getLogger
 from led_wall.effects.effect_manager import EffectManager
@@ -10,8 +12,18 @@ from led_wall.ui.dmx_channels import DMX_channels_Input
 from led_wall.ui.settings_manager import SettingsElement, SettingsManager
 from led_wall.io_manager import IO_Manager
 
+def get_local_ip():
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("8.8.8.8", 80))
+        ip = s.getsockname()[0]
+        s.close()
+        return ip
+    except Exception:
+        return "127.0.0.1"
+
 DEV = False
-if not DEV or not __name__ == "__main__": # you can do `if True:` to bypass this to revert to the normal behavior, but that is slow...
+if (not DEV or __name__ != "__main__") and multiprocessing.current_process().name == 'MainProcess': # you can do `if True:` to bypass this to revert to the normal behavior, but that is slow...
     # Explanation: 2 reasons for running this code:
     # 1. not in dev mode, so there is no __mp_main__, this is already where NiceGUI will run
     # 2. or, in dev mode, and this is the __mp_main__, so we want to run this code
@@ -43,6 +55,8 @@ if not DEV or not __name__ == "__main__": # you can do `if True:` to bypass this
     io_manager = IO_Manager(settings_manager=settings_manager)
 
     # Serve media files
+    if not os.path.exists('media'):
+        os.makedirs('media')
     app.add_static_files('/media', 'media')
 
     effect_manager = None
@@ -84,22 +98,8 @@ if not DEV or not __name__ == "__main__": # you can do `if True:` to bypass this
         
         logger.info(f"Preset changed to {e.value}")
 
-        if effect_manager is not None:
-            # Stop the active effect
-            if effect_manager and hasattr(effect_manager, 'effects'):
-                try:
-                    effect_manager.effects[effect_manager.active_effect].stop()
-                    logger.info("Stopped active effect")
-                except Exception as e:
-                    logger.error(f"Error stopping effect: {e}")
-            
-            # Stop the IO manager loop
-            if io_manager:
-                try:
-                    io_manager.stop_loop()
-                    logger.info("Stopped IO manager loop")
-                except Exception as e:
-                    logger.error(f"Error stopping IO manager: {e}")
+        if effect_manager:
+            effect_manager.shutdown()  # Stop all effects and cleanup resources before creating a new effect manager
 
         #create a new effect manager with the new preset settings
         effect_settings = SettingsManager(parent=SettingsManager(parent=settings_manager, name="presets"), name=e.value)
@@ -142,23 +142,11 @@ if not DEV or not __name__ == "__main__": # you can do `if True:` to bypass this
             logger.info("Disconnecting clients...")
         except Exception as e:
             logger.error(f"Error disconnecting clients: {e}")
-        
-        # Stop the active effect
-        if effect_manager and hasattr(effect_manager, 'effects'):
-            try:
-                effect_manager.effects[effect_manager.active_effect].stop()
-                logger.info("Stopped active effect")
-            except Exception as e:
-                logger.error(f"Error stopping effect: {e}")
-        
-        # Stop the IO manager loop
-        if io_manager:
-            try:
-                io_manager.stop_loop()
-                logger.info("Stopped IO manager loop")
-            except Exception as e:
-                logger.error(f"Error stopping IO manager: {e}")
-        
+
+        if effect_manager:
+            effect_manager.shutdown()  # Stop all effects and cleanup resources
+            logger.info("Effect manager shutdown complete")
+                
         # Save settings
         # try:
         #     settings_manager.save_to_file()
@@ -237,22 +225,29 @@ if not DEV or not __name__ == "__main__": # you can do `if True:` to bypass this
     # def index():
     #     print("Here are some tasks you want to run before every page load")
     #     ui.label("You page definitions go here")
+    
+    with ui.footer().classes('bg-transparent text-gray-500 flex justify-between items-center px-4 py-1'):
+        ui.label('Created by Lorin Mühlebach').classes('text-xs font-light')
+        ui.label(f'Server: {get_local_ip()}:8080').classes('text-xs font-light')
 
     def delayed_startup_tasks():
-        print("Here are a bunch of startup tasks that also must be run once, but can be after the server has started")
+        #print("Here are a bunch of startup tasks that also must be run once, but can be after the server has started")
         #io_manager.start_loop()  # Start the IO manager loop before the UI is fully up
         #effect_manager.setup()
         preset_change(ValueChangeEventArguments(sender=None, client=None, value=app_settings.settings["selected_preset"]))  # Trigger the preset change to initialize everything
         preset_settinsElement.on_change = preset_change  # Set the on_change callback for the preset settings element
-        print("After-server-start startup tasks are done")
+        #print("After-server-start startup tasks are done")
 
     app.on_startup(delayed_startup_tasks)
 
 
-ui.run(
-    title='Led Wall',
-    host="0.0.0.0",
-    reload=DEV,
-    #window_size=(1800, 600),
-    dark=True
-)
+if multiprocessing.current_process().name == 'MainProcess':
+    ui.run(
+        title='Led Wall',
+        host="0.0.0.0",
+        port=8080,
+        reload=DEV,
+        native=True,
+        #window_size=(1800, 1000),
+        dark=True
+    )

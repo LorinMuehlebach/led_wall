@@ -49,15 +49,16 @@ class EffectManager():
         self.default_effect = self.available_effects[0]
 
         #self.settings = []
+        effect_options = {effect.__name__: effect.NAME for effect in self.available_effects}
 
         for i in range(self.nof_effects):
             settings_element =SettingsElement(
                 label=None,
                 input=ui.select,
-                default_value=self.default_effect.NAME,
+                default_value=self.default_effect.__name__,
                 settings_id=f'active_effect_{i}',
                 on_change=lambda e, index=i: self.on_effect_selected(e, index),
-                options=[effect.NAME for effect in self.available_effects],
+                options=effect_options,
                 manager=self.settings_manager,
             )
             self.effect_type.append(settings_element)
@@ -190,6 +191,8 @@ class EffectManager():
         new_effect = effect_cls(self.resolution, self.dimension, self.rgbw, self.effect_setting_managers[index])
         new_effect.io_manager = self.IO_manager
 
+        #TODO make sure that we have a settings file an manager. clear previeous settings
+
         self.effects[index] = new_effect
         self.effect_manager_ui.refresh()
 
@@ -285,4 +288,23 @@ class EffectManager():
 
         #get_preview_frame = partial(self.create_preview_frame, self.output_buffer, self.preview_width, self.preview_height)
         preview_setup(self.preview_image, get_preview_frame=self.create_preview_frame)
+    
+    def shutdown(self):
+        """
+        shuts down the effect manager and all effects.
+        """
+        # Stop the active effect
+        if hasattr(self, 'effects'):
+            try:
+                self.effects[self.active_effect].stop()
+                logger.info("Stopped active effect")
+            except Exception as e:
+                logger.error(f"Error stopping effect: {e}")
         
+        # Stop the IO manager loop
+        if self.IO_manager:
+            try:
+                self.IO_manager.stop_loop()
+                logger.info("Stopped IO manager loop")
+            except Exception as e:
+                logger.error(f"Error stopping IO manager: {e}")

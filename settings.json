@@ -1,77 +1,18 @@
 {
     "presets": {
         "Show1": {
-            "active_effect_0": "Single Color",
-            "active_effect_1": "Image Display",
-            "active_effect_2": "Color Mix",
-            "active_effect_3": "Test Effect",
-            "active_effect_4": "Gradient",
-            "active_effect_5": "Video",
-            "active_effect_6": "Single Color",
-            "active_effect_7": "Single Color",
-            "effect_settings_2": {
-                "convert_to_rgbw": false,
-                "convert_to_rgbw_2": false,
-                "speed": 86,
-                "noise_pattern_type": 0,
-                "noise_image_file": "demo_img.png",
-                "noise_image_mapping": "Verh\u00e4ltniss",
-                "noise_image_offset_x": 0.0,
-                "noise_image_offset_y": 0.0,
-                "noise_image_scale": 1.0,
-                "noise_image_rotation": 0.0,
-                "media_file": "demo_img.png",
-                "mix_mode": "Image",
-                "rotation": 0.0
-            },
-            "effect_settings_0": {
-                "convert_to_rgbw": true,
-                "convert_to_rgbw_2": false,
-                "speed": 50,
-                "noise_pattern_type": 2,
-                "noise_image_file": null,
-                "noise_image_mapping": "Pixels",
-                "noise_image_offset_x": 0.0,
-                "noise_image_offset_y": 0.0,
-                "noise_image_scale": 1.0
-            },
-            "effect_settings_4": {
-                "speed": 50,
-                "video_file": "BigBuckBunny_320x180.mp4"
-            },
-            "effect_settings_5": {
-                "video_file": "BigBuckBunny_320x180.mp4",
-                "rotation": 0.0,
-                "scale": 1.0,
-                "offset_y": 0.0
-            },
-            "effect_settings_1": {
-                "media_file": "demo_img.png"
-            }
-        },
-        "Show2": {
-            "active_effect_0": "Single Color",
-            "active_effect_1": "Color Mix",
-            "active_effect_2": "Single Color",
-            "active_effect_3": "Color Mix",
-            "active_effect_4": "Color Mix",
-            "active_effect_5": "Color Mix",
-            "active_effect_6": "Color Mix",
-            "active_effect_7": "Color Mix"
-        },
-        "Show3": {
-            "active_effect_0": "Color Mix",
-            "active_effect_1": "Color Mix",
-            "active_effect_2": "Color Mix",
-            "active_effect_3": "Color Mix",
-            "active_effect_4": "Color Mix",
-            "active_effect_5": "Color Mix",
-            "active_effect_6": "Color Mix",
-            "active_effect_7": "Color Mix"
+            "active_effect_0": "Gradient",
+            "active_effect_1": "Gradient",
+            "active_effect_2": "SingleColor",
+            "active_effect_3": "Gradient",
+            "active_effect_4": "ColorMix",
+            "active_effect_5": "SingleColor",
+            "active_effect_6": "SingleColor",
+            "active_effect_7": "SingleColor"
         }
     },
     "main_settings": {
-        "selected_preset": "Show3"
+        "selected_preset": "Show1"
     },
     "io_settings": {
         "resolution_width": 30,

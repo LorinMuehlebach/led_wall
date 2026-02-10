@@ -15,8 +15,8 @@ class SingleColor(BaseEffect):
     Base class for all effects
     """
 
-    NAME = 'Single Color'
-    DESCRIPTION = 'Effect that displays a single color'
+    NAME = 'Einfache Farbe'
+    DESCRIPTION = 'Effekt, der eine einzelne Farbe anzeigt'
 
     def run_raw(self, DMX_channels,last_output) -> dict[str, object]:
         """

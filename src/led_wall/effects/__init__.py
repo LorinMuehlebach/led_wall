@@ -17,7 +17,7 @@ def get_effects():
     sorted_effects = sorted(all_effects, key=lambda e: e.NAME)
     #move single_color to the front
     for i, effect in enumerate(sorted_effects):
-        if effect.NAME == "single_color":
+        if effect.__name__ == "SingleColor":
             sorted_effects.insert(0, sorted_effects.pop(i))
             break
     return sorted_effects
@@ -25,6 +25,6 @@ def get_effects():
 def get_effect_class(name) -> type[BaseEffect] | None:
     effects = get_effects()
     for effect in effects:
-        if effect.NAME == name:
+        if effect.__name__ == name:
             return effect
     return None
