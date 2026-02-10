@@ -302,8 +302,8 @@ class MediaManager:
             dim_w, dim_h = self.dimensions
             
             # Calculate preview size based on physical dimensions to show correct aspect ratio
-            # Use a maximum preview width of 400px and scale height proportionally
-            preview_max_width = 400
+            # Use a maximum preview width of 800px and scale height proportionally
+            preview_max_width = 800
             aspect_ratio = dim_w / dim_h
             preview_w = preview_max_width
             preview_h = int(preview_max_width / aspect_ratio)
@@ -331,22 +331,21 @@ class MediaManager:
 
         return self.dialog
     
-    def create_ui(self,dialog=None,add_preview=True):
+    def create_ui(self, dialog=None, add_preview=True, padding=True):
         """
         Creates the UI elements for the media upload and mapping dialog.
         """
-
-        with ui.column().classes('w-full p-4'):
+        padding_class = 'p-4' if padding else 'p-0'
+        with ui.column().classes(f'w-full {padding_class}'):
             ui.label(self.TITLE).classes('text-lg font-bold')
             
             # Media selection controls
             current_val = self.settings_manager.get_setting(self.media_path_setting_id)
             current_display = current_val if current_val else f'No {self.FILE_TYPE_LABEL} selected'
+                        
+            ui.button(self.SELECT_BUTTON_LABEL, icon='photo_library', on_click=self._open_select_dialog).classes('w-full mb-4')
             
             self.current_image_label = ui.label(f'Current: {current_display}').classes('text-sm text-gray-600 mb-2')
-            
-            ui.button(self.SELECT_BUTTON_LABEL, icon='photo_library', on_click=self._open_select_dialog).classes('w-full mb-4')
-
             if add_preview:
                 # Preview of the current media
                 self.preview_ui()

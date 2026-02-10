@@ -32,6 +32,10 @@ class EffectManager():
         self.pixel_channels = IO_manager.pixel_channels
         self.rgbw = IO_manager.pixel_channels == 4
 
+        self.effect_type: list[SettingsElement] = []
+        self.effects: list[BaseEffect] = []
+        self.effect_setting_managers = []
+
         self.ui_select = []
         self.preview_image = None
 
@@ -39,14 +43,12 @@ class EffectManager():
 
         self.status = "setup"
 
+    def setup(self):
         #initialize the effects
         self.available_effects = effects_class.get_effects()
         self.default_effect = self.available_effects[0]
 
         #self.settings = []
-        self.settings_elements: list[SettingsElement] = []
-        self.effects: list[BaseEffect] = []
-        self.effect_setting_managers = []
 
         for i in range(self.nof_effects):
             settings_element =SettingsElement(
@@ -58,9 +60,9 @@ class EffectManager():
                 options=[effect.NAME for effect in self.available_effects],
                 manager=self.settings_manager,
             )
-            self.settings_elements.append(settings_element)
+            self.effect_type.append(settings_element)
             effect_cls = effects_class.get_effect_class(settings_element.value)
-            self.effect_setting_managers.append(SettingsManager(settings_manager,name=f"effect_settings_{i}"))
+            self.effect_setting_managers.append(SettingsManager(self.settings_manager,name=f"effect_settings_{i}"))
             effect = effect_cls(self.resolution, self.dimension, self.rgbw, self.effect_setting_managers[i])
             effect.io_manager = self.IO_manager
             self.effects.append(effect)
@@ -68,34 +70,36 @@ class EffectManager():
 
         self.status = "ready"
 
+        self.effect_manager_ui.refresh()
         self.change_active_effect(index=self.active_effect)
 
         self.IO_manager.create_frame = self.run_loop
-
+        
 
     @ui.refreshable
     def effect_manager_ui(self):
-        effects = effects_class.get_effects()
-
         self.all_tabs = []
         with ui.tabs().classes('w-full q-dark').on('update:model-value', self.on_tab_change) as self.tabs:
             for i in range(self.nof_effects):
                 self.all_tabs.append(ui.tab(f'{i+1}'))
+        
+        # Set initial tab value
+        self.tabs.value = self.all_tabs[self.active_effect]
 
         with ui.tab_panels(self.tabs, value=self.all_tabs[self.active_effect]).classes('w-full'):
-            for tab_idx in range(self.nof_effects):
+            for tab_idx in range(len(self.effect_type)):
                 with ui.tab_panel(self.all_tabs[tab_idx]):
                     with ui.row().classes('w-full'):
                         with ui.element("div").classes('min-w-48').style('max-width: 180px').style('max-width: 180px'):
-                            self.settings_elements[tab_idx].create_ui()
+                            self.effect_type[tab_idx].create_ui()
                             
                             ui.element("div").style('height: 16px')  # Spacer
                             ui.label(self.effects[tab_idx].DESCRIPTION)
                             ui.element("div").style('height: 16px')  # Spacer
                             
 
-                            with ui.dialog() as dialog, ui.card().classes('w-full max-w-4xl min-h-96').style('display: flex; flex-direction: column;'):
-                                with ui.element("div").classes('flex-grow overflow-auto'):
+                            with ui.dialog() as dialog, ui.card().classes('w-full max-w-full min-h-96').style('display: flex; flex-direction: column;'):
+                                with ui.element("div").classes('flex-grow overflow-auto w-full'):
                                     self.effects[tab_idx].ui_settings()
                                 ui.separator()
 
@@ -134,14 +138,20 @@ class EffectManager():
             return
         
         # Find the index of the selected tab
-        tab_index = int(event.args)-1  # Convert from 1-based to 0-based index
+        try:
+            # event.args might be a string (label) or a list [label]
+            val = event.args[0] if isinstance(event.args, list) else event.args
+            tab_index = int(val) - 1  # Convert from 1-based to 0-based index
+        except (ValueError, TypeError, IndexError):
+            return
+
         channels = self.IO_manager.get_channels()
         slider_tab_idx = self.value_to_effect_idx(channels[5])
         if tab_index != slider_tab_idx:
             channels[5] = int(tab_index / self.nof_effects * 256)  # Update the channel value to reflect the new effect
             self.IO_manager.update_DMX_channels(channels)  # Trigger an update to apply the new effect immediately
 
-    def change_active_effect(self,new_effect=None,index=None):
+    def change_active_effect(self, new_effect=None, index=None):
         if self.status == "setup":
             return
         
@@ -159,7 +169,12 @@ class EffectManager():
         self.effects[self.active_effect].start()
         self.effects[self.active_effect].on_input_change = self.IO_manager.update_DMX_channels
 
-        #TODO not needed anymore
+        # Sync UI tabs if they exist
+        if hasattr(self, 'tabs') and self.tabs and hasattr(self, 'all_tabs'):
+            # Programmatic update of tabs.value switches the visible tab
+            self.tabs.value = self.all_tabs[self.active_effect]
+
+        # Refresh dependent UIs
         self.effect_setting_ui.refresh()
         self.effect_show_ui.refresh()
 
@@ -223,7 +238,6 @@ class EffectManager():
             cv2.waitKey(1)
 
         return output
-
 
     #needs to be static to be handled correctly it cannot depend on self
     def create_preview_frame(self) -> np.ndarray:

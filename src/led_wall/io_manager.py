@@ -237,8 +237,9 @@ class IO_Manager():
         self.create_frame = None #callback function to the selected effect
 
         self.ts_last_frame = 0
+        #no not start thread here to prevent issues with multiple instances of IO_Manager in the same process (e.g. when running multiple presets) which can cause multiple threads to be started and interfere with each other. Start the thread in the entry point instead.
         self.run = False
-        self.run_thread = Thread(target=self.run_loop, daemon=True)
+        self.run_thread = None 
 
         #start input
         self.is_initialized = True
@@ -268,22 +269,25 @@ class IO_Manager():
         self.dmx_channel_inputs.create_ui()
 
     def start_loop(self) -> None:
+        print("Starting IO loop thread...")
         # Prevent self-joining if called from within the loop thread
-        if self.run_thread is current_thread():
-            self.run = True
-            # logger.debug("start_loop called from within run_loop. Ignoring restart request.")
-            return
+        if self.run_thread is not None:
+            if self.run_thread is current_thread():
+                self.run = True
+                # logger.debug("start_loop called from within run_loop. Ignoring restart request.")
+                return
 
-        self.run = True
-        if self.run_thread.is_alive():
-            self.run = False
-            try:
-                self.run_thread.join(timeout=2.0)  # Wait for the thread to finish if it's already running
-            except RuntimeError:
-                pass
-            logger.warning("Previous loop thread was still running. Restarted the loop.")
+            self.run = True
+            if self.run_thread.is_alive():
+                self.run = False
+                try:
+                    self.run_thread.join(timeout=1.0)  # Wait for the thread to finish if it's already running
+                except RuntimeError:
+                    pass
+                logger.warning("Previous loop thread was still running. Restarted the loop.")
         
         # Always create a new thread since threads cannot be restarted
+        self.run = True
         self.run_thread = Thread(target=self.run_loop, daemon=True)
         self.run_thread.start()
 
@@ -337,7 +341,6 @@ class IO_Manager():
         """
         loop which runs at the defined framerate
         """
-
         while self.run:
             while time.time() - self.ts_last_frame < 1 / self.framerate:
                 # wait until the next frame is due
@@ -426,9 +429,17 @@ class IO_Manager():
         )
         self.artnet_sender.start()
 
+
+    last_pid = None
     def update_artnet_output(self):
         if not hasattr(self, 'artnet_sender') or not self.artnet_sender:
             return
+        
+        #TODO add thread id here to check if multiple threads are trying to send data at the same time which can cause issues with StupidArtnet
+        current_pid = current_thread().ident
+        if self.last_pid is not None and self.last_pid != current_pid:
+            logger.warning(f"Multiple threads detected in update_artnet_output: last_pid={self.last_pid}, current_pid={current_pid}")
+        self.last_pid = current_pid
 
         width, height = self.resolution
         
@@ -436,6 +447,9 @@ class IO_Manager():
             for x in range(width):
                 if x >= len(self.segment_to_universe):
                     break
+
+                if self.reverse_addressing:
+                    x = (width - 1) - x # flip
                 
                 # Apply device order mapping if needed (reverses blocks of columns)
                 source_x = x
@@ -449,9 +463,6 @@ class IO_Manager():
 
                 # Get column data
                 segment_data = self.output_buffer[source_x, :, :]
-                
-                if self.reverse_addressing:
-                    segment_data = np.flip(segment_data, axis=0)
                 
                 # Flatten data to list of ints for StupidArtnet
                 dmx_values = segment_data.flatten().tolist()

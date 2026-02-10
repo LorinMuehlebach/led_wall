@@ -13,7 +13,7 @@
                 "convert_to_rgbw": false,
                 "convert_to_rgbw_2": false,
                 "speed": 86,
-                "noise_pattern_type": 2,
+                "noise_pattern_type": 0,
                 "noise_image_file": "demo_img.png",
                 "noise_image_mapping": "Verh\u00e4ltniss",
                 "noise_image_offset_x": 0.0,
@@ -22,21 +22,6 @@
                 "noise_image_rotation": 0.0,
                 "media_file": "demo_img.png",
                 "mix_mode": "Image",
-                "rotation": 0.0
-            },
-            "effect_settings_1": {
-                "convert_to_rgbw": false,
-                "convert_to_rgbw_2": true,
-                "speed": 46,
-                "noise_pattern_type": 1,
-                "noise_image_file": null,
-                "noise_image_mapping": "Verh\u00e4ltniss",
-                "noise_image_offset_x": 0.0,
-                "noise_image_offset_y": 0.0,
-                "noise_image_scale": 1.0,
-                "media_file": "demo_img.png",
-                "scale": 1.3,
-                "offset_y": 0.0,
                 "rotation": 0.0
             },
             "effect_settings_0": {
@@ -59,21 +44,34 @@
                 "rotation": 0.0,
                 "scale": 1.0,
                 "offset_y": 0.0
+            },
+            "effect_settings_1": {
+                "media_file": "demo_img.png"
             }
         },
         "Show2": {
-            "active_effect_0": "Test Effect",
-            "active_effect_1": "Gradient",
-            "active_effect_2": "Gradient",
-            "active_effect_3": "Gradient",
-            "active_effect_4": "Gradient",
-            "active_effect_5": "Gradient",
-            "active_effect_6": "Gradient",
-            "active_effect_7": "Gradient"
+            "active_effect_0": "Single Color",
+            "active_effect_1": "Color Mix",
+            "active_effect_2": "Single Color",
+            "active_effect_3": "Color Mix",
+            "active_effect_4": "Color Mix",
+            "active_effect_5": "Color Mix",
+            "active_effect_6": "Color Mix",
+            "active_effect_7": "Color Mix"
+        },
+        "Show3": {
+            "active_effect_0": "Color Mix",
+            "active_effect_1": "Color Mix",
+            "active_effect_2": "Color Mix",
+            "active_effect_3": "Color Mix",
+            "active_effect_4": "Color Mix",
+            "active_effect_5": "Color Mix",
+            "active_effect_6": "Color Mix",
+            "active_effect_7": "Color Mix"
         }
     },
     "main_settings": {
-        "selected_preset": "Show1"
+        "selected_preset": "Show3"
     },
     "io_settings": {
         "resolution_width": 30,
@@ -85,13 +83,13 @@
         "preview_in_window": false,
         "input_source": "artnet",
         "dmx_address": 1,
-        "artnet_ip": "192.168.1.18",
+        "artnet_ip": "127.0.0.1",
         "input_dmx_address": 1.0,
         "input_universe": 0.0,
         "input_port": 6454,
-        "artnet_port": 6454.0,
+        "artnet_port": 6455,
         "addressing_direction": "vertical",
-        "reverse_addressing": true,
+        "reverse_addressing": false,
         "consecutive_universes": 5.0,
         "skip_universes": 3,
         "device_order_reversed": true,
