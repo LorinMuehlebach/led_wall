@@ -3,3 +3,7 @@ media/
 
 __pycache__/
 *.py[cd]
+
+dist/
+build/
+*.egg-info/
