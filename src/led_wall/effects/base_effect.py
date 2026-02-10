@@ -17,7 +17,7 @@ class BaseEffect:
 
     NAME = 'Base Effect'
     DESCRIPTION = 'Base effect that does nothing'
-
+    CONTROLLS_LOOP = False
 
     def __init__(self,resolution: tuple[int, int],dimensions: tuple[int, int], rgbw: bool, settings_manager: SettingsManager = None) -> None:
         """
@@ -28,6 +28,7 @@ class BaseEffect:
         self.dimensions:tuple[int, int] = dimensions #physical dimensions [m]
         self.rgbw:bool = rgbw
         self.on_input_change:callable = None #callback function to update the DMX faders
+        self.io_manager = None # Reference to IO_Manager, set by EffectManager
 
         self.setup_settings()
 
@@ -108,6 +109,19 @@ class BaseEffect:
         with ui.column().classes('w-full'):
             for element in self.settings_elements:
                 element.create_ui()
+
+    def on_ui_open(self):
+        """
+        Called when the effect settings dialog is opened.
+        """
+        pass
+
+    def on_ui_close(self):
+        """
+        Called when the effect settings dialog is closed.
+        """
+        pass
+
         
     def ui_show(self) -> None:
         """

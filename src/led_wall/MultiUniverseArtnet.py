@@ -13,6 +13,7 @@ import _thread
 from time import sleep, time
 from stupidArtnet.ArtnetUtils import shift_this, put_in_range
 
+MAX_ARTNET_UPDATE_INTERVAL = 0.5  # MAXIMUM interval between updates to make sure the wall gets an update at least every 0.5 seconds even if the data doesn't change (to prevent freezes on the wall)
 
 class StupidArtnet():
     """(Very) simple implementation of Artnet."""
@@ -179,7 +180,7 @@ class StupidArtnet():
         current_time = time()
         for u in self.universes:
             # Check if data has changed or if it's been more than a second since the last update
-            if self.universe_buffer[u] != self.last_sent_buffer[u] or (current_time - self.last_send_time[u]) > 1.0:
+            if self.universe_buffer[u] != self.last_sent_buffer[u] or (current_time - self.last_send_time[u]) > MAX_ARTNET_UPDATE_INTERVAL:
                 header = self.make_artdmx_header(u)
                 packet = bytearray()
                 packet.extend(header)

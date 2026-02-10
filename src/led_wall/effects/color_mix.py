@@ -19,6 +19,16 @@ class ColorMix(BaseEffect):
     DESCRIPTION = 'Blends two colors using selectable noise patterns or a grayscale image. Controls for blend balance and scale.'
 
     def __init__(self, resolution: tuple[int, int], dimensions: tuple[int, int], rgbw: bool, settings_manager=None) -> None:
+        # Initialize media manager before super().__init__ because it might be needed by settings
+        self.media_manager = MediaManager(settings_manager, resolution=resolution, dimensions=dimensions, grayscale=True)
+        # Use specific IDs for backward compatibility and to avoid conflicts
+        self.media_manager.media_path_setting_id = "noise_image_file"
+        self.media_manager.fill_mode_setting_id = "noise_image_mapping"
+        self.media_manager.offset_x_id = "noise_image_offset_x"
+        self.media_manager.offset_y_id = "noise_image_offset_y"
+        self.media_manager.scale_id = "noise_image_scale"
+        self.media_manager.rotation_id = "noise_image_rotation"
+        
         super().__init__(resolution, dimensions, rgbw, settings_manager)
         
         # Ensure media directory exists
@@ -33,8 +43,6 @@ class ColorMix(BaseEffect):
         self.inputs['blend'] = Fader(127) # 1 channel - shifts the blend balance
         self.inputs['noise_scale'] = Fader(127) # 1 channel - scale/frequency of the noise
 
-        self.media_manager = MediaManager(settings_manager, resolution=resolution, dimensions=dimensions, grayscale=True)
-        
         self.res_x, self.res_y = self.resolution
         self._noise_pattern = None
         self._last_noise_settings = None
@@ -59,72 +67,31 @@ class ColorMix(BaseEffect):
         blend_offset = (self.inputs['blend'].value / 255.0) * 2.0 - 1.0
         noise_scale = self.inputs['noise_scale'].value
         
-        # Determine category (0-4) and scale for caching
+        # Get current mix mode and noise pattern
+        mix_mode = self.settings_manager.get_setting('mix_mode') or 'Noise'
         category = self.settings_manager.get_setting('noise_pattern_type')
         if category is None:
             category = 1 # Default to Smooth Noise
             
-        mapping_mode = self.settings_manager.get_setting('noise_image_mapping') or 'Verhältniss'
-        offset_x = self.settings_manager.get_setting('noise_image_offset_x') or 0.0
-        offset_y = self.settings_manager.get_setting('noise_image_offset_y') or 0.0
-        img_scale = self.settings_manager.get_setting('noise_image_scale') or 1.0
-
-        image_file = self.settings_manager.get_setting('noise_image_file')
-        current_settings = (category, noise_scale, image_file, mapping_mode, offset_x, offset_y, img_scale)
+        # Media Manager settings are handled internally by MediaManager
+        current_settings = (mix_mode, category, noise_scale, 
+                          self.settings_manager.get_setting(self.media_manager.media_path_setting_id),
+                          self.settings_manager.get_setting(self.media_manager.fill_mode_setting_id),
+                          self.settings_manager.get_setting(self.media_manager.offset_x_id),
+                          self.settings_manager.get_setting(self.media_manager.offset_y_id),
+                          self.settings_manager.get_setting(self.media_manager.scale_id),
+                          self.settings_manager.get_setting(self.media_manager.rotation_id))
         
-        # Only regenerate noise if the pattern type, scale, or image has changed
+        # Only regenerate noise if the pattern type, scale, mode or image has changed
         if self._noise_pattern is None or self._last_noise_settings != current_settings:
-            if category == 4: # Image
-                if not image_file:
-                    noise = np.zeros((self.res_x, self.res_y))
-                else:
-                    path = os.path.join('media', image_file)
-                    try:
-                        img = cv2.imread(path, cv2.IMREAD_GRAYSCALE)
-                        if img is None:
-                            logger.error(f"Could not load image {path}")
-                            noise = np.zeros((self.res_x, self.res_y))
-                        else:
-                            # self.res_x is width, self.res_y is height
-                            if mapping_mode == 'Verhältniss':
-                                # resize to match LED wall resolution
-                                # cv2.resize takes (width, height)
-                                noise = cv2.resize(img, (self.res_x, self.res_y), interpolation=cv2.INTER_LINEAR)
-                            else:
-                                # Pixels mapping with scale and offset
-                                target = np.zeros((self.res_x, self.res_y))
-                                h, w = img.shape
-                                new_h, new_w = int(h * img_scale), int(w * img_scale)
-                                if new_h > 0 and new_w > 0:
-                                    img_resized = cv2.resize(img, (new_w, new_h), interpolation=cv2.INTER_LINEAR)
-                                    
-                                    # Calculate start position (centered + offset)
-                                    # target axis 0 is width (x), axis 1 is height (y)
-                                    start_x = int((self.res_x - new_w) / 2 + offset_x * self.res_x)
-                                    start_y = int((self.res_y - new_h) / 2 + offset_y * self.res_y)
-                                    
-                                    # Crop source and target to fit
-                                    t_start_x = max(0, start_x)
-                                    t_end_x = min(self.res_x, start_x + new_w)
-                                    t_start_y = max(0, start_y)
-                                    t_end_y = min(self.res_y, start_y + new_h)
-                                    
-                                    s_start_x = max(0, -start_x)
-                                    s_end_x = s_start_x + (t_end_x - t_start_x)
-                                    s_start_y = max(0, -start_y)
-                                    s_end_y = s_start_y + (t_end_y - t_start_y)
-                                    
-                                    if t_end_x > t_start_x and t_end_y > t_start_y:
-                                        target[t_start_x:t_end_x, t_start_y:t_end_y] = img_resized[s_start_y:s_end_y, s_start_x:s_end_x]
-                                noise = target
-
-                            noise = noise.astype(float) / 255.0
-                    except Exception as e:
-                        logger.error(f"Error loading image {path}: {e}")
-                        noise = np.zeros((self.res_x, self.res_y))
+            if mix_mode == 'Image':
+                # Get frame from MediaManager (H, W, 3)
+                frame = self.media_manager.get_frame()
+                # Use only one channel (as it's grayscale) and transpose to (W, H)
+                noise = frame[:, :, 0].T.astype(float) / 255.0
             else:
                 # Use a deterministic seed based on settings to keep noise static but varied per setting
-                rng = np.random.RandomState(seed=category * 1000 + noise_scale)
+                rng = np.random.RandomState(seed=int(category) * 1000 + noise_scale)
                 
                 # Determine grid size for noise generation (min 2, max full resolution)
                 min_grid = 2
@@ -179,14 +146,20 @@ class ColorMix(BaseEffect):
         """
         Setup effect specific settings.
         """
-        def select_file(**kwargs):
-            options = self._get_media_files()
-            # Ensure the current value is in the options to avoid NiceGUI crash
-            if kwargs.get('value') not in options:
-                kwargs['value'] = None
-            return ui.select(options=options, **kwargs)
+        # Migration: if noise_pattern_type was 4 (Image), switch to mix_mode='Image'
+        if self.settings_manager.get_setting('noise_pattern_type') == 4:
+            self.settings_manager.update_setting('noise_pattern_type', 1) # Reset to a valid noise pattern
+            self.settings_manager.update_setting('mix_mode', 'Image')
 
         self.settings_elements = [
+            SettingsElement(
+                label='Mix Mode',
+                input=ui.select,
+                default_value='Noise',
+                manager=self.settings_manager,
+                options=['Noise', 'Image'],
+                settings_id='mix_mode'
+            ),
             SettingsElement(
                 label='Noise Pattern',
                 input=ui.select,
@@ -196,71 +169,33 @@ class ColorMix(BaseEffect):
                     0: 'White Noise',
                     1: 'Smooth Noise',
                     2: 'Horizontal Stripes',
-                    3: 'Vertical Stripes',
-                    4: 'Image'
+                    3: 'Vertical Stripes'
                 },
                 settings_id='noise_pattern_type'
-            ),
-            SettingsElement(
-                label='Image File',
-                input=select_file,
-                default_value=None,
-                manager=self.settings_manager,
-                settings_id='noise_image_file'
-            ),
-            SettingsElement(
-                label='Mapping Mode',
-                input=ui.select,
-                default_value='Verhältniss',
-                manager=self.settings_manager,
-                options=['Verhältniss', 'Pixels'],
-                settings_id='noise_image_mapping'
-            ),
-            SettingsElement(
-                label='Offset X',
-                input=ui.slider,
-                default_value=0.0,
-                manager=self.settings_manager,
-                settings_id='noise_image_offset_x',
-                min=-1.0, max=1.0, step=0.01
-            ),
-            SettingsElement(
-                label='Offset Y',
-                input=ui.slider,
-                default_value=0.0,
-                manager=self.settings_manager,
-                settings_id='noise_image_offset_y',
-                min=-1.0, max=1.0, step=0.01
-            ),
-            SettingsElement(
-                label='Image Scale',
-                input=ui.slider,
-                default_value=1.0,
-                manager=self.settings_manager,
-                settings_id='noise_image_scale',
-                min=0.1, max=10.0, step=0.1
             )
         ]
 
     def ui_settings(self) -> None:
         """
-        Custom settings UI with upload and mapping dialog.
+        Custom settings UI with tabs for Noise and Image modes.
         """
-
-        self.preview = ui.image('').classes('w-full object-contain mb-2 q-pa-md')
+        # Get current mode to set initial tab
+        current_mode = self.settings_manager.get_setting('mix_mode') or 'Noise'
         
-        # Mapping setting IDs to be shown in the dialog
-        mapping_ids = ['noise_image_mapping', 'noise_image_offset_x', 'noise_image_offset_y', 'noise_image_scale', 'noise_image_file']
+        with ui.tabs().classes('w-full') as tabs:
+            noise_tab = ui.tab('Noise')
+            image_tab = ui.tab('Image')
         
-        with ui.column().classes('w-full'):
-            # Create UI for non-mapping settings
-            for element in self.settings_elements:
-                if element.settings_id not in mapping_ids:
-                    element.create_ui()
+        with ui.tab_panels(tabs, value=noise_tab if current_mode == 'Noise' else image_tab).classes('w-full') as panels:
+            with ui.tab_panel(noise_tab):
+                # Only show Noise Pattern in this tab
+                for element in self.settings_elements:
+                    if element.settings_id == 'noise_pattern_type':
+                        element.create_ui()
+                
+            with ui.tab_panel(image_tab):
+                # Use our media_manager instance to show image selection and mapping
+                self.media_manager.create_ui(add_preview=True)
 
-        # Initialize and create the reusable dialog
-        media_dialog = MediaManager(self.settings_manager, resolution=self.resolution, grayscale=True)
-        media_dialog.create_ui(add_preview=False) # Create the UI elements but not the preview image, as it will be shown in the dialog
-        media_dialog.preview = self.preview # Link the preview in the dialog to the one in this settings page
-
-            #ui.button('Adjust Image Mapping', on_click=dialog.open, icon='straighten').classes('w-full mt-2')
+        # Update mix_mode when tab changes
+        tabs.on_value_change(lambda e: self.settings_manager.update_setting('mix_mode', 'Noise' if e.value == noise_tab else 'Image'))

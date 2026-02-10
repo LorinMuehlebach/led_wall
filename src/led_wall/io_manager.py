@@ -2,7 +2,7 @@ import time
 import numpy as np
 import cv2
 from functools import partial
-from threading import Thread
+from threading import Thread, current_thread
 from logging import getLogger
 
 import asyncio
@@ -268,12 +268,23 @@ class IO_Manager():
         self.dmx_channel_inputs.create_ui()
 
     def start_loop(self) -> None:
+        # Prevent self-joining if called from within the loop thread
+        if self.run_thread is current_thread():
+            self.run = True
+            # logger.debug("start_loop called from within run_loop. Ignoring restart request.")
+            return
+
         self.run = True
         if self.run_thread.is_alive():
             self.run = False
-            self.run_thread.join(timeout=2.0)  # Wait for the thread to finish if it's already running
+            try:
+                self.run_thread.join(timeout=2.0)  # Wait for the thread to finish if it's already running
+            except RuntimeError:
+                pass
             logger.warning("Previous loop thread was still running. Restarted the loop.")
-
+        
+        # Always create a new thread since threads cannot be restarted
+        self.run_thread = Thread(target=self.run_loop, daemon=True)
         self.run_thread.start()
 
     def stop_loop(self) -> None:
@@ -287,7 +298,7 @@ class IO_Manager():
             self.artnet_sender.stop()
             del self.artnet_sender
 
-        if self.run_thread.is_alive():
+        if self.run_thread.is_alive() and self.run_thread is not current_thread():
             try:
                 self.run_thread.join(timeout=2.0)
                 if self.run_thread.is_alive():
@@ -295,8 +306,32 @@ class IO_Manager():
             except Exception as e:
                 print(f"Error stopping loop: {e}")
 
+    def stop_thread(self) -> None:
+        """
+        Stops the loop thread without tearing down ArtNet resources.
+        """
+        self.run = False
+        if self.run_thread.is_alive() and self.run_thread is not current_thread():
+            try:
+                self.run_thread.join(timeout=2.0)
+            except Exception as e:
+                logger.error(f"Error stopping loop thread: {e}")
+
     def __del__(self):
         self.stop_loop()
+
+    def step(self):
+        """
+        Single step of the loop.
+        """
+        self.ts_last_frame = time.time()
+
+        channels = self.dmx_channel_inputs.get_channels()
+        frame = self.create_frame(channels, last_output=self.output_buffer) if self.create_frame else self.output_buffer
+
+        self.output_buffer = frame
+
+        self.update_artnet_output()
 
     def run_loop(self):
         """
@@ -308,14 +343,7 @@ class IO_Manager():
                 # wait until the next frame is due
                 time.sleep(max((1 / self.framerate) - (time.time() - self.ts_last_frame) - 0.001, 0.001))
             
-            self.ts_last_frame = time.time()
-
-            channels = self.dmx_channel_inputs.get_channels()
-            frame = self.create_frame(channels, last_output=self.output_buffer) if self.create_frame else self.output_buffer
-
-            self.output_buffer = frame
-
-            self.update_artnet_output()
+            self.step()
 
     def get_channels(self):
         return self.dmx_channel_inputs.get_channels()

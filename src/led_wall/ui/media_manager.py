@@ -17,26 +17,27 @@ class MediaManager:
     """
     A reusable dialog for uploading, selecting, and mapping images for effects.
     """
+    TITLE = "Media Upload & Mapping"
+    SELECT_BUTTON_LABEL = "Select Image"
+    UPLOAD_BUTTON_LABEL = "Upload Image"
+    GALLERY_TITLE = "Select Image"
+    FILE_TYPE_LABEL = "image"
+    ALLOWED_EXTENSIONS = ('.png', '.jpg', '.jpeg', '.bmp')
+
     def __init__(self, settings_manager: SettingsManager, 
                  resolution: tuple[int, int] = (30, 60),
                  dimensions: tuple[float, float] = (6, 3),
-                 image_setting_id: str = 'noise_image_file',
-                 mapping_setting_id: str = 'noise_image_mapping',
-                 offset_x_id: str = 'noise_image_offset_x',
-                 offset_y_id: str = 'noise_image_offset_y',
-                 scale_id: str = 'noise_image_scale',
-                 rotation_id: str = 'noise_image_rotation',
                  grayscale: bool = False) -> None:
         
         self.settings_manager = settings_manager
         self.resolution = resolution
         self.dimensions = dimensions
-        self.image_setting_id = image_setting_id
-        self.mapping_setting_id = mapping_setting_id
-        self.offset_x_id = offset_x_id
-        self.offset_y_id = offset_y_id
-        self.scale_id = scale_id
-        self.rotation_id = rotation_id
+        self.media_path_setting_id = "media_file"
+        self.fill_mode_setting_id = "mode"
+        self.offset_x_id = "offset_x"
+        self.offset_y_id = "offset_y"
+        self.scale_id = "scale"
+        self.rotation_id = "rotation"
         self.grayscale = grayscale
         
         self.dialog = None
@@ -47,11 +48,12 @@ class MediaManager:
         self.warning_label = None
         self._preview_timer = None
         self._current_image = None
+        self._last_loaded_path = None
 
     def _get_media_files(self):
         if not os.path.exists('media'):
             os.makedirs('media')
-        files = [f for f in os.listdir('media') if f.lower().endswith(('.png', '.jpg', '.jpeg', '.bmp'))]
+        files = [f for f in os.listdir('media') if f.lower().endswith(self.ALLOWED_EXTENSIONS)]
         return sorted(files)
 
     def _handle_upload(self, e):
@@ -73,9 +75,9 @@ class MediaManager:
                 os.remove(path)
                 ui.notify(f'Deleted {filename}')
                 # If this was the selected image, clear the selection
-                current = self.settings_manager.get_setting(self.image_setting_id)
+                current = self.settings_manager.get_setting(self.media_path_setting_id)
                 if current == filename:
-                    self.settings_manager.update_setting(self.image_setting_id, None)
+                    self.settings_manager.update_setting(self.media_path_setting_id, None)
                     asyncio.create_task(self._load_and_update())
                 # Refresh the gallery
                 if self.gallery_container:
@@ -85,7 +87,7 @@ class MediaManager:
     
     def _select_image(self, filename):
         """Select an image from the gallery."""
-        self.settings_manager.update_setting(self.image_setting_id, filename)
+        self.settings_manager.update_setting(self.media_path_setting_id, filename)
         if self.current_image_label:
             self.current_image_label.text = f'Current: {filename}'
         asyncio.create_task(self._load_and_update())
@@ -99,10 +101,10 @@ class MediaManager:
         self.gallery_container.clear()
         with self.gallery_container:
             files = self._get_media_files()
-            current_img = self.settings_manager.get_setting(self.image_setting_id)
+            current_img = self.settings_manager.get_setting(self.media_path_setting_id)
             
             if not files:
-                ui.label('No images found. Upload an image to get started.').classes('text-gray-500 italic')
+                ui.label(f'No {self.FILE_TYPE_LABEL}s found. Upload a {self.FILE_TYPE_LABEL} to get started.').classes('text-gray-500 italic')
             else:
                 with ui.grid(columns=3).classes('w-full gap-2'):
                     for filename in files:
@@ -122,15 +124,15 @@ class MediaManager:
                                 ui.button(icon='delete', on_click=lambda f=filename: self._handle_delete(f)).props('flat dense size=sm color=red')
     
     def _open_select_dialog(self):
-        """Open the image selection dialog with gallery view."""
+        """Open the selection dialog with gallery view."""
         with ui.dialog() as self.select_dialog, ui.card().classes('w-full max-w-2xl'):
             with ui.column().classes('w-full p-4'):
-                ui.label('Select Image').classes('text-lg font-bold mb-2')
+                ui.label(self.GALLERY_TITLE).classes('text-lg font-bold mb-2')
                 
                 # Upload button
                 with ui.row().classes('w-full mb-4'):
                     upload = ui.upload(on_upload=self._handle_upload, auto_upload=True).classes('hidden')
-                    ui.button('Upload Image', icon='cloud_upload', on_click=lambda: upload.run_method('pickFiles'))
+                    ui.button(self.UPLOAD_BUTTON_LABEL, icon='cloud_upload', on_click=lambda: upload.run_method('pickFiles'))
                 
                 # Gallery container
                 self.gallery_container = ui.column().classes('w-full max-h-96 overflow-auto')
@@ -173,61 +175,53 @@ class MediaManager:
         """
         Loads the selected image into memory and scales it down for preview performance.
         """
-        img_file = self.settings_manager.get_setting(self.image_setting_id)
+        img_file = self.settings_manager.get_setting(self.media_path_setting_id)
         if not img_file:
             self._current_image = None
+            self._last_loaded_path = None
             return
 
         path = os.path.join('media', img_file)
         if not os.path.exists(path):
             self._current_image = None
+            self._last_loaded_path = None
             return
 
         try:
             with Image.open(path) as img:
-                # Resize large images immediately to speed up conversion and mapping
-                # 400px is more than enough for these small LED walls
-                img.thumbnail((400, 400))
+                # Resize large images to save memory but ensure we have enough resolution for the wall
+                limit = max(400, self.resolution[0], self.resolution[1])
+                img.thumbnail((limit, limit))
                 self._current_image = img.convert('RGB')
+                self._last_loaded_path = img_file
         except Exception as e:
             logger.error(f"Error loading image into memory: {e}")
             self._current_image = None
+            self._last_loaded_path = None
 
-    def _update_preview(self):
+    def get_mapped_image(self) -> Image.Image:
         """
-        Applies transformations to the in-memory image and updates the preview.
+        Applies transformations to the in-memory image and returns proper sized image.
         """
+        # Checks if we need to load image
+        current_file = self.settings_manager.get_setting(self.media_path_setting_id)
+        if current_file != self._last_loaded_path:
+             self._load_image()
 
-        self._preview_timer = None
-        if not self.preview:
-            return
+        res_w, res_h = self.resolution
         
+        # Create black canvas
+        mapped_img = Image.new('RGB', (res_w, res_h), (0, 0, 0))
+
         if self._current_image is None:
-            self.preview.set_source('')
-            return
+            return mapped_img
 
         try:
-            # self.resolution is (width, height) in pixels
-            res_w, res_h = self.resolution
-            # self.dimensions is (width, height) in meters
-            dim_w, dim_h = self.dimensions
-            
-            # Calculate preview size based on physical dimensions to show correct aspect ratio
-            # Use a maximum preview width of 400px and scale height proportionally
-            preview_max_width = 400
-            aspect_ratio = dim_w / dim_h
-            preview_w = preview_max_width
-            preview_h = int(preview_max_width / aspect_ratio)
-            preview_resolution = (preview_w, preview_h)
-            
-            mapping_mode = self.settings_manager.get_setting(self.mapping_setting_id) or 'Verhältniss'
+            mapping_mode = self.settings_manager.get_setting(self.fill_mode_setting_id) or 'Verhältniss'
             offset_x = self.settings_manager.get_setting(self.offset_x_id) or 0.0
             offset_y = self.settings_manager.get_setting(self.offset_y_id) or 0.0
             img_scale = self.settings_manager.get_setting(self.scale_id) or 1.0
             rotation = self.settings_manager.get_setting(self.rotation_id) or 0.0
-            
-            # Create black canvas
-            mapped_img = Image.new('RGB', (res_w, res_h), (0, 0, 0))
             
             if mapping_mode == 'Verhältniss':
                 # Verhältniss mode: apply rotation, scale, and offset
@@ -256,9 +250,9 @@ class MediaManager:
                     if self.warning_label:
                         self.warning_label.set_visibility(False)
                 else:
-                    # Image doesn't match resolution - show warning
+                    # Media doesn't match resolution - show warning
                     if self.warning_label:
-                        self.warning_label.text = f'⚠️ Image resolution ({img_w}x{img_h}) does not match LED wall resolution ({res_w}x{res_h})'
+                        self.warning_label.text = f'⚠️ {self.FILE_TYPE_LABEL.capitalize()} resolution ({img_w}x{img_h}) does not match LED wall resolution ({res_w}x{res_h})'
                         self.warning_label.set_visibility(True)
                     # Still display what we have (centered)
                     pos_x = max(0, (res_w - img_w) // 2)
@@ -277,6 +271,45 @@ class MediaManager:
             # Apply grayscale conversion if enabled
             if self.grayscale:
                 mapped_img = mapped_img.convert('L').convert('RGB')
+                
+            return mapped_img
+
+        except Exception as e:
+            logger.error(f"Error mapping image: {e}")
+            return mapped_img
+
+    def get_frame(self) -> np.ndarray:
+        img = self.get_mapped_image()
+        return np.array(img)
+
+    def _update_preview(self):
+        """
+        Applies transformations to the in-memory image and updates the preview.
+        """
+
+        self._preview_timer = None
+        if not self.preview:
+            return
+        
+        if self._current_image is None:
+            self.preview.set_source('')
+            return
+
+        try:
+            # self.resolution is (width, height) in pixels
+            res_w, res_h = self.resolution
+            # self.dimensions is (width, height) in meters
+            dim_w, dim_h = self.dimensions
+            
+            # Calculate preview size based on physical dimensions to show correct aspect ratio
+            # Use a maximum preview width of 400px and scale height proportionally
+            preview_max_width = 400
+            aspect_ratio = dim_w / dim_h
+            preview_w = preview_max_width
+            preview_h = int(preview_max_width / aspect_ratio)
+            preview_resolution = (preview_w, preview_h)
+            
+            mapped_img = self.get_mapped_image()
             
             # Convert PIL image to numpy array for create_preview_frame
             frame = np.array(mapped_img)
@@ -304,26 +337,26 @@ class MediaManager:
         """
 
         with ui.column().classes('w-full p-4'):
-            ui.label('Media Upload & Mapping').classes('text-lg font-bold')
+            ui.label(self.TITLE).classes('text-lg font-bold')
             
-            # Image selection controls
-            current_val = self.settings_manager.get_setting(self.image_setting_id)
-            current_display = current_val if current_val else 'No image selected'
+            # Media selection controls
+            current_val = self.settings_manager.get_setting(self.media_path_setting_id)
+            current_display = current_val if current_val else f'No {self.FILE_TYPE_LABEL} selected'
             
             self.current_image_label = ui.label(f'Current: {current_display}').classes('text-sm text-gray-600 mb-2')
             
-            ui.button('Select Image', icon='photo_library', on_click=self._open_select_dialog).classes('w-full mb-4')
+            ui.button(self.SELECT_BUTTON_LABEL, icon='photo_library', on_click=self._open_select_dialog).classes('w-full mb-4')
 
             if add_preview:
-                # Preview of the current image
-                self.preview_image_ui()
+                # Preview of the current media
+                self.preview_ui()
             
             # Warning label for resolution mismatch
             self.warning_label = ui.label('').classes('text-orange-500 text-sm font-semibold')
             self.warning_label.set_visibility(False)
 
             ui.separator().classes('my-4')
-            ui.label('Image Mapping / Position').classes('text-sm font-semibold text-gray-400')
+            ui.label(f'{self.FILE_TYPE_LABEL.capitalize()} Mapping / Position').classes('text-sm font-semibold text-gray-400')
             
             def create_internal_number(label, setting_id, min_val, max_val, step):
                 current = self.settings_manager.get_setting(setting_id)
@@ -345,9 +378,9 @@ class MediaManager:
             
             with ui.row().classes('w-full items-center mb-4'):
                 ui.label('Mode').classes('w-24')
-                current_mode = self.settings_manager.get_setting(self.mapping_setting_id) or 'Verhältniss'
+                current_mode = self.settings_manager.get_setting(self.fill_mode_setting_id) or 'Verhältniss'
                 ui.select(['Verhältniss', 'Pixels'], value=current_mode,
-                            on_change=lambda e: [self.settings_manager.update_setting(self.mapping_setting_id, e.value), self._request_preview_update()]).classes('flex-grow')
+                            on_change=lambda e: [self.settings_manager.update_setting(self.fill_mode_setting_id, e.value), self._request_preview_update()]).classes('flex-grow')
 
             if dialog is not None:
                 ui.button('Speichern', on_click=dialog.close).classes('mt-4 self-end')
@@ -355,7 +388,7 @@ class MediaManager:
             self._load_image()  # Load image into memory immediately to speed up first preview
             self._update_preview()  # Load initial preview if there's already a selected image
 
-    def preview_image_ui(self):
+    def preview_ui(self):
         # Preview of the current image
         self.preview = ui.image('').classes('w-full object-contain mb-2 q-pa-md')
 

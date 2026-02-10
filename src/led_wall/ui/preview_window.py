@@ -23,7 +23,7 @@ def convert(frame: np.ndarray) -> bytes:
     return imencode_image.tobytes()
 
 
-def preview_setup(video_image:ui.interactive_image,webcam:bool = False,get_preview_frame:Callable[[], np.ndarray]=None) -> None:
+def preview_setup(video_image:ui.interactive_image,webcam:bool = False,get_preview_frame:Callable[[], np.ndarray]=None, interval: float = 0.1, url_path: str = '/video/frame') -> ui.timer:
     # OpenCV is used to access the webcam.
     if webcam:
         video_capture = cv2.VideoCapture(0)
@@ -32,7 +32,7 @@ def preview_setup(video_image:ui.interactive_image,webcam:bool = False,get_previ
         # This will provide a black placeholder image.
         video_capture = None
 
-    @app.get('/video/frame')
+    @app.get(url_path)
     # Thanks to FastAPI's `app.get` it is easy to create a web route which always provides the latest image from OpenCV.
     async def grab_video_frame() -> Response:        
         if get_preview_frame is None:
@@ -49,6 +49,9 @@ def preview_setup(video_image:ui.interactive_image,webcam:bool = False,get_previ
             # `convert` is a CPU-intensive function, so we run it in a separate process to avoid blocking the event loop and GIL.
         else:
             frame = get_preview_frame()
+        
+        if isinstance(frame, bytes):
+            return Response(content=frame, media_type='image/jpeg')
             
         jpeg = await run.cpu_bound(convert, frame)
         return Response(content=jpeg, media_type='image/jpeg')
@@ -58,8 +61,8 @@ def preview_setup(video_image:ui.interactive_image,webcam:bool = False,get_previ
     # A timer constantly updates the source of the image.
     # Because data from same paths is cached by the browser,
     # we must force an update by adding the current timestamp to the source.
-    ui.timer(interval=0.1, callback=lambda: video_image.set_source(f'/video/frame?{time.time()}'))
-
+    timer = ui.timer(interval=interval, callback=lambda: video_image.set_source(f'{url_path}?{time.time()}'))
+    
     async def disconnect() -> None:
         """Disconnect all clients from current running server."""
         for client_id in Client.instances:
@@ -75,6 +78,8 @@ def preview_setup(video_image:ui.interactive_image,webcam:bool = False,get_previ
             video_capture.release()
 
     app.on_shutdown(cleanup)
+    
+    return timer
 
 # All the setup is only done when the server starts. This avoids the webcam being accessed
 # by the auto-reload main process (see https://github.com/zauberzeug/nicegui/discussions/2321).

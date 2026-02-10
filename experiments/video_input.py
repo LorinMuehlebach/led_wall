@@ -18,11 +18,11 @@ import cv2
 import time
 import pathlib
 
-OUTPUT_FRAMERATE = 10  # Set the desired output frame rate
+OUTPUT_FRAMERATE = 60  # Set the desired output frame rate
 RESOLUTION = (35*2,80)  # Set the resolution to 80x35
 FILE = pathlib.Path(__file__).parent / "BigBuckBunny_320x180.mp4"
 
-ffparams = {#"-filter:v":f"fps={OUTPUT_FRAMERATE}",
+ffparams = {"-filter:v":f"fps={OUTPUT_FRAMERATE}",
             "-custom_resolution": RESOLUTION # Set custom resolution to 35x80,
             }  # Example parameter to set frame rate to 10 FPS
 
@@ -57,7 +57,13 @@ for frame in decoder.generateFrame():
     # while time.time() - ts_last_frame < 1 / OUTPUT_FRAMERATE:
     #     time.sleep(0.002)
 
-    # ts_last_frame = time.time()  # timestamp of new frame
+    
+
+    while time.time() - ts_last_frame < 1 / OUTPUT_FRAMERATE:
+        # wait until the next frame is due
+        time.sleep(max((1 / OUTPUT_FRAMERATE) - (time.time() - ts_last_frame) - 0.0001, 0.0001))
+
+    ts_last_frame = time.time()  # timestamp of new frame
 
     # check if frame is None
     if frame is None:

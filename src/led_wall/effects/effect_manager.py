@@ -44,7 +44,7 @@ class EffectManager():
         self.default_effect = self.available_effects[0]
 
         #self.settings = []
-        self.settings_elements = []
+        self.settings_elements: list[SettingsElement] = []
         self.effects: list[BaseEffect] = []
         self.effect_setting_managers = []
 
@@ -61,7 +61,9 @@ class EffectManager():
             self.settings_elements.append(settings_element)
             effect_cls = effects_class.get_effect_class(settings_element.value)
             self.effect_setting_managers.append(SettingsManager(settings_manager,name=f"effect_settings_{i}"))
-            self.effects.append(effect_cls(self.resolution, self.dimension, self.rgbw, self.effect_setting_managers[i]))
+            effect = effect_cls(self.resolution, self.dimension, self.rgbw, self.effect_setting_managers[i])
+            effect.io_manager = self.IO_manager
+            self.effects.append(effect)
         self.effects[self.active_effect].start()
 
         self.status = "ready"
@@ -90,15 +92,27 @@ class EffectManager():
                             ui.element("div").style('height: 16px')  # Spacer
                             ui.label(self.effects[tab_idx].DESCRIPTION)
                             ui.element("div").style('height: 16px')  # Spacer
+                            
 
                             with ui.dialog() as dialog, ui.card().classes('w-full max-w-4xl min-h-96').style('display: flex; flex-direction: column;'):
                                 with ui.element("div").classes('flex-grow overflow-auto'):
                                     self.effects[tab_idx].ui_settings()
                                 ui.separator()
-                                with ui.row().classes('w-full justify-end'):
-                                    ui.button('Close', on_click=dialog.close)
 
-                            ui.button('Einstellungen', on_click=dialog.open)
+                                with ui.row().classes('w-full justify-end'):
+                                    # Hook into dialog open/close to manage resources (e.g. video preview)
+                                    def open_settings(eff=self.effects[tab_idx], dlg=dialog):
+                                        eff.on_ui_open()
+                                        dlg.open()
+
+                                    def close_settings(eff=self.effects[tab_idx], dlg=dialog):
+                                        eff.on_ui_close()
+                                        dlg.close()
+
+                                    ui.button('Close', on_click=close_settings)
+                            
+                            
+                            ui.button('Einstellungen', on_click=open_settings)
                         with ui.element("div").classes('flex-grow'):
                             self.effects[tab_idx].ui_show()        
 
@@ -159,6 +173,7 @@ class EffectManager():
         #initialize the new effect
         effect_cls = effects_class.get_effect_class(event.value)
         new_effect = effect_cls(self.resolution, self.dimension, self.rgbw, self.effect_setting_managers[index])
+        new_effect.io_manager = self.IO_manager
 
         self.effects[index] = new_effect
         self.effect_manager_ui.refresh()
