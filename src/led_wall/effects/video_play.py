@@ -116,6 +116,7 @@ class VideoPlay(BaseEffect):
                 except Exception as e:
                     logger.warning(f"Could not join IO Manager thread: {e}")
 
+        logger.debug("Video loop started.")
         fps = 30
         if hasattr(self.video_manager, '_fps') and self.video_manager._fps > 0:
             fps = self.video_manager._fps
@@ -137,3 +138,4 @@ class VideoPlay(BaseEffect):
                 time.sleep(max(0.001, next_call - now))
         super().stop()
         self.video_manager.stop()
+        logger.debug("Video loop stopped.")

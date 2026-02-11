@@ -348,6 +348,7 @@ class IO_Manager():
                 time.sleep(max((1 / self.framerate) - (time.time() - self.ts_last_frame) - 0.001, 0.001))
             
             self.step()
+        print("IO loop stopped.")
 
     def get_channels(self):
         return self.dmx_channel_inputs.get_channels()
@@ -432,16 +433,19 @@ class IO_Manager():
         #self.artnet_sender.start()
 
 
-    last_pid = None
+    last_thread_id: int | None = None
     def update_artnet_output(self):
         if not hasattr(self, 'artnet_sender') or not self.artnet_sender:
             return
         
-        #TODO add thread id here to check if multiple threads are trying to send data at the same time which can cause issues with StupidArtnet
-        current_pid = current_thread().ident
-        if self.last_pid is not None and self.last_pid != current_pid:
-            logger.warning(f"Multiple threads detected in update_artnet_output: last_pid={self.last_pid}, current_pid={current_pid}")
-        self.last_pid = current_pid
+        # Check if multiple threads are trying to send data at the same time which can cause issues with StupidArtnet
+        current_thread_id = current_thread().ident
+        if self.last_thread_id is not None and self.last_thread_id != current_thread_id:
+            import threading
+            # Check if the previous thread is still active
+            if any(t.ident == self.last_thread_id for t in threading.enumerate()):
+                logger.warning(f"Multiple threads running in update_artnet_output: last_thread_id={self.last_thread_id}, current_thread_id={current_thread_id}")
+        self.last_thread_id = current_thread_id
 
         width, height = self.resolution
         

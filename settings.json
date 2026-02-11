@@ -1,14 +1,17 @@
 {
     "presets": {
         "Show1": {
-            "active_effect_0": "Gradient",
-            "active_effect_1": "Gradient",
-            "active_effect_2": "SingleColor",
-            "active_effect_3": "Gradient",
-            "active_effect_4": "ColorMix",
+            "active_effect_0": "SingleColor",
+            "active_effect_1": "ImageDisplay",
+            "active_effect_2": "VideoPlay",
+            "active_effect_3": "SingleColor",
+            "active_effect_4": "SingleColor",
             "active_effect_5": "SingleColor",
             "active_effect_6": "SingleColor",
-            "active_effect_7": "SingleColor"
+            "active_effect_7": "SingleColor",
+            "effect_settings_1": {
+                "media_file": "demo_img.png"
+            }
         }
     },
     "main_settings": {

@@ -168,6 +168,9 @@ class EffectManager():
             raise ValueError("Either new_effect or index must be provided to change the active effect.")
         
         self.effects[self.active_effect].start()
+        #set channels to current dmx channels
+        channels = self.IO_manager.get_channels()
+        self.effects[self.active_effect].update_inputs(channels)
         self.effects[self.active_effect].on_input_change = self.IO_manager.update_DMX_channels
 
         # Sync UI tabs if they exist

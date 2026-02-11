@@ -248,6 +248,6 @@ if multiprocessing.current_process().name == 'MainProcess':
         port=8080,
         reload=DEV,
         native=True,
-        #window_size=(1800, 1000),
+        window_size=(1800, 1000),
         dark=True
     )
