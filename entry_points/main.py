@@ -10,17 +10,9 @@ from led_wall.ui.logging_config import getLogger
 from led_wall.effects.effect_manager import EffectManager
 from led_wall.ui.dmx_channels import DMX_channels_Input
 from led_wall.ui.settings_manager import SettingsElement, SettingsManager
-from led_wall.io_manager import IO_Manager
+from led_wall.io_manager import IO_Manager, get_local_ip
 
-def get_local_ip():
-    try:
-        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        s.connect(("8.8.8.8", 80))
-        ip = s.getsockname()[0]
-        s.close()
-        return ip
-    except Exception:
-        return "127.0.0.1"
+logger = getLogger("main")
 
 DEV = False
 if (not DEV or __name__ != "__main__") and multiprocessing.current_process().name == 'MainProcess': # you can do `if True:` to bypass this to revert to the normal behavior, but that is slow...
@@ -32,7 +24,7 @@ if (not DEV or __name__ != "__main__") and multiprocessing.current_process().nam
     from nicegui import ui, app, Client, core
     from nicegui.events import ValueChangeEventArguments
 
-    logger = getLogger(__name__)
+    
 
     # from led_wall.ui.translate import setup_translate
     # _ = setup_translate() #lazy translate function

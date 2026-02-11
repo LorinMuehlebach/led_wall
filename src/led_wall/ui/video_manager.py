@@ -83,6 +83,12 @@ class VideoManager(MediaManager):
         # Apply blurry upscaling for preview
         return create_preview_frame(led_frame, self.resolution, (preview_w, preview_h), self.dimensions)
 
+    def _is_url(self, path: str) -> bool:
+        """Checks if a string is a stream URL."""
+        if not path:
+            return False
+        return any(path.startswith(s) for s in ['http://', 'https://', 'rtsp://', 'rtmp://', 'udp://', 'tcp://'])
+
     def _start_decoder(self, video_file, settings=None, start_time=0):
         """Starts the deffcode decoder with mapping transformations in FFmpeg filters."""
         if self._decoder is not None:
@@ -91,10 +97,13 @@ class VideoManager(MediaManager):
             except Exception:
                 pass
         
-        path = os.path.join('media', video_file)
-        if not os.path.exists(path):
-            self._frame_generator = None
-            return
+        if self._is_url(video_file):
+            path = video_file
+        else:
+            path = os.path.join('media', video_file)
+            if not os.path.exists(path):
+                self._frame_generator = None
+                return
 
         try:
             if settings:
@@ -136,16 +145,26 @@ class VideoManager(MediaManager):
             ffparams = {
                 "-custom_resolution": (res_w, res_h),
                 "-vf": ",".join(filters),
-                "-ss": str(start_time)
             }
+            
+            # Only apply start time for files, not for live streams
+            if not self._is_url(video_file):
+                ffparams["-ss"] = str(start_time)
             
             self._decoder = FFdecoder(path, frame_format="rgb24", verbose=False, **ffparams).formulate()
             self._frame_generator = self._decoder.generateFrame()
-            self._video_start_time = time.time() - start_time
-            self._frames_displayed = int(start_time * self._fps)
+            
+            if self._is_url(video_file):
+                # For streams, we don't sync to clock same way as files
+                # We just take the latest frame
+                self._video_start_time = time.time()
+                self._frames_displayed = 0
+            else:
+                self._video_start_time = time.time() - start_time
+                self._frames_displayed = int(start_time * self._fps)
             
         except Exception as e:
-            logger.error(f"Error starting video decoder: {e}")
+            logger.error(f"Error starting video decoder for {path}: {e}")
             self._frame_generator = None
 
     def preview_ui(self):
@@ -197,6 +216,47 @@ class VideoManager(MediaManager):
             self._decoder = None
         if hasattr(self, '_last_frame'):
             del self._last_frame
+        
+        # Start preloading the new video/stream immediately
+        self.preload()
+
+    def _open_select_dialog(self):
+        """Open the selection dialog with gallery view and stream URL input."""
+        with ui.dialog() as self.select_dialog, ui.card().classes('w-full max-w-2xl'):
+            with ui.column().classes('w-full p-4'):
+                ui.label(self.GALLERY_TITLE).classes('text-lg font-bold mb-2')
+                
+                # Stream URL input section
+                with ui.column().classes('w-full mb-4 p-3 bg-gray-50 rounded-lg'):
+                    ui.label('Stream URL').classes('text-xs font-bold text-gray-500 uppercase mb-1')
+                    with ui.row().classes('w-full items-center gap-2'):
+                        current_path = self.settings_manager.get_setting(self.media_path_setting_id) or ''
+                        # If current path is a URL, show it in the input
+                        url_val = current_path if self._is_url(current_path) else ''
+                        
+                        url_input = ui.input('e.g. rtsp://..., http://...', value=url_val).classes('flex-grow')
+                        
+                        def apply_url():
+                            if url_input.value:
+                                self._select_image(url_input.value)
+                        
+                        ui.button(on_click=apply_url).props('flat color=primary icon=link').tooltip('Apply Stream URL')
+
+                ui.separator().classes('mb-4')
+                
+                ui.label('Local Files').classes('text-xs font-bold text-gray-500 uppercase mb-2')
+                # Upload button
+                with ui.row().classes('w-full mb-4'):
+                    upload = ui.upload(on_upload=self._handle_upload, auto_upload=True).classes('hidden')
+                    ui.button(self.UPLOAD_BUTTON_LABEL, icon='cloud_upload', on_click=lambda: upload.run_method('pickFiles'))
+                
+                # Gallery container
+                self.gallery_container = ui.column().classes('w-full max-h-96 overflow-auto')
+                self._refresh_gallery()
+                
+                ui.button('Close', on_click=self.select_dialog.close).classes('mt-4 self-end')
+        
+        self.select_dialog.open()
 
     def stop(self):
         """Clean up resources."""

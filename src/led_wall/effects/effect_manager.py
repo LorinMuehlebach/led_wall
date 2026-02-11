@@ -79,11 +79,13 @@ class EffectManager():
     @ui.refreshable
     def effect_manager_ui(self):
         self.all_tabs = []
-        with ui.tabs().classes('w-full q-dark').on('update:model-value', self.on_tab_change) as self.tabs:
+        # Set initial value to prevent default selection of tab 1 during refresh/rebuild
+        initial_tab_label = f'{self.active_effect + 1}'
+        with ui.tabs(value=initial_tab_label).classes('w-full q-dark').on('update:model-value', self.on_tab_change) as self.tabs:
             for i in range(self.nof_effects):
                 self.all_tabs.append(ui.tab(f'{i+1}'))
         
-        # Set initial tab value
+        # Sync the tabs.value to the specific tab object
         self.tabs.value = self.all_tabs[self.active_effect]
 
         with ui.tab_panels(self.tabs, value=self.all_tabs[self.active_effect]).classes('w-full'):
@@ -166,10 +168,10 @@ class EffectManager():
         else:
             raise ValueError("Either new_effect or index must be provided to change the active effect.")
         
-        self.effects[self.active_effect].start()
         #set channels to current dmx channels
         channels = self.IO_manager.get_channels()
         self.effects[self.active_effect].update_inputs(channels)
+        self.effects[self.active_effect].start()
         self.effects[self.active_effect].on_input_change = self.IO_manager.update_DMX_channels
 
         # Sync UI tabs if they exist
@@ -193,9 +195,13 @@ class EffectManager():
         new_effect = effect_cls(self.resolution, self.dimension, self.rgbw, self.effect_setting_managers[index])
         new_effect.io_manager = self.IO_manager
 
-        #TODO make sure that we have a settings file an manager. clear previeous settings
-
-        self.effects[index] = new_effect
+        # If the effect being changed is the active one, use change_active_effect
+        # to handle stop() and start() properly.
+        if index == self.active_effect:
+            self.change_active_effect(new_effect=new_effect)
+        else:
+            self.effects[index] = new_effect
+            
         self.effect_manager_ui.refresh()
 
     def on_channel_change(self, event, index):

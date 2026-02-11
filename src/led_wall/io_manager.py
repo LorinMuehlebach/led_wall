@@ -65,6 +65,9 @@ class IO_Manager():
         self.device_order_reversed = True
         self.device_universes = 8
 
+        self.flip_top_bottom = False
+        self.flip_left_right = False
+
         self.settings_menu = {
             "Display": [
                 SettingsElement(
@@ -193,6 +196,22 @@ class IO_Manager():
                     default_value=self.addressing_direction,
                     on_change=lambda e, self=self: (setattr(self, 'addressing_direction', e.value), self.output_artnet_init()),
                     options=['horizontal','vertical'],
+                    manager=self.settings_manager
+                ),
+                SettingsElement(
+                    label='flip top-bottom',
+                    input=ui.switch,
+                    settings_id='flip_top_bottom',
+                    default_value=self.flip_top_bottom,
+                    on_change=lambda e, self=self: setattr(self, 'flip_top_bottom', e.value),
+                    manager=self.settings_manager
+                ),
+                SettingsElement(
+                    label='flip left-right',
+                    input=ui.switch,
+                    settings_id='flip_left_right',
+                    default_value=self.flip_left_right,
+                    on_change=lambda e, self=self: setattr(self, 'flip_left_right', e.value),
                     manager=self.settings_manager
                 ),
                 SettingsElement(
@@ -359,8 +378,41 @@ class IO_Manager():
 
         if self.input_source == "artnet":
             self.input_artnet_init()
+        elif self.input_source == "sacn":
+            self.input_sacn_init()
         elif self.input_source == "dmx":
             pass #nothing to initialize for DMX input as we read the channels directly from the sliders
+
+    def input_sacn_init(self, universum:int=None, port:int=None):
+        if universum is not None:
+            self.input_universe = universum
+        if port is not None:
+            self.input_port = port
+
+        import sacn
+        # provide an IP-Address to bind to if you want to receive multicast packets from a specific interface
+        self.receiver = sacn.sACNreceiver()
+        self.receiver.start()  # start the receiving thread
+        
+        # define a callback function
+        @self.receiver.listen_on('universe', universe=universum)  # listens on universe 1
+        def callback(packet:sacn.DataPacket):  # packet type: sacn.DataPacket
+            if packet.dmxStartCode == 0x00:  # ignore non-DMX-data packets
+                start = self.input_dmx_address - 1
+                count = self.dmx_channel_inputs.n_channels
+                
+                if len(packet.dmxData) >= start + count:
+                    values = list(packet.dmxData[start : start + count])
+                    self.dmx_channel_inputs.update_sliders(values, external=True)
+
+        # optional: if multicast is desired, join with the universe number as parameter
+        self.receiver.join_multicast(universum)
+
+    def input_sacn_stop(self, universum:int=None):
+        # optional: if multicast was previously joined
+        self.receiver.leave_multicast(universum)
+        self.receiver.stop()
+
 
     def input_artnet_init(self,universum:int=None, port:int=None):
         if universum is not None:
@@ -432,7 +484,6 @@ class IO_Manager():
         #not needed we will call show ourselves
         #self.artnet_sender.start()
 
-
     last_thread_id: int | None = None
     def update_artnet_output(self):
         if not hasattr(self, 'artnet_sender') or not self.artnet_sender:
@@ -448,6 +499,13 @@ class IO_Manager():
         self.last_thread_id = current_thread_id
 
         width, height = self.resolution
+
+        # Apply global flips if needed
+        output_buffer = self.output_buffer
+        if self.flip_top_bottom:
+            output_buffer = np.flip(output_buffer, axis=1) # flip vertically
+        if self.flip_left_right:
+            output_buffer = np.flip(output_buffer, axis=0) # flip horizontally
         
         if self.addressing_direction == 'vertical':
             for x in range(width):
@@ -468,7 +526,7 @@ class IO_Manager():
                         source_x = reversed_block_idx * self.consecutive_universes + idx_in_block
 
                 # Get column data
-                segment_data = self.output_buffer[source_x, :, :]
+                segment_data = output_buffer[source_x, :, :]
                 
                 # Flatten data to list of ints for StupidArtnet
                 dmx_values = segment_data.flatten().tolist()
@@ -532,3 +590,13 @@ class IO_Manager():
             )
 
         self.preview_timer = preview_setup(self.preview_image, get_preview_frame=None, io_manager=self)
+
+def get_local_ip():
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("8.8.8.8", 80))
+        ip = s.getsockname()[0]
+        s.close()
+        return ip
+    except Exception:
+        return "127.0.0.1"

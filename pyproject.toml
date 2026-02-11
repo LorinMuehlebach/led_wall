@@ -8,6 +8,7 @@ authors = [
 ]
 requires-python = ">=3.10"
 dependencies = [
+    "aioartnet>=0.2.1",
     "aiortc>=1.14.0",
     #"aiortc>=1.13.0",
     "deffcode>=0.2.6",
@@ -19,7 +20,9 @@ dependencies = [
     "pydmxcontrol>=2.0.0",
     "pyinstaller>=6.18.0",
     "pyserial>=3.5",
+    "python-artnet>=1.2.0",
     "pywebview>=6.0",
+    "sacn>=1.11.0",
     "stupidartnet>=1.4.0",
     "vidgear>=0.3.4",
 ]

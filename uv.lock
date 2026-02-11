@@ -3,6 +3,15 @@ revision = 1
 requires-python = ">=3.10"
 
 [[package]]
+name = "aioartnet"
+version = "0.2.1"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/35/34/b6d0fc42fb631be5d34d91041744fb6c6e02deb7c08f3e4c0ff0e57e315f/aioartnet-0.2.1.tar.gz", hash = "sha256:d6a91dfcd2a77c8ca3513c8ade525f66f8347f191e16ba276ac4824c45058b7f", size = 30858 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/2b/a4/c5cebc1e3a495eb660fbaf0d16109c3a57637fb92c3ceb0f3ce10b2d1d6c/aioartnet-0.2.1-py3-none-any.whl", hash = "sha256:4d1ac51da67751d6a89f2b550e15756b76e51602a76cc2f564a5f8c9f730fae1", size = 22707 },
+]
+
+[[package]]
 name = "aiofiles"
 version = "24.1.0"
 source = { registry = "https://pypi.org/simple" }
@@ -919,6 +928,7 @@ name = "led-wall"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
+    { name = "aioartnet" },
     { name = "aiortc" },
     { name = "deffcode" },
     { name = "nicegui" },
@@ -929,13 +939,16 @@ dependencies = [
     { name = "pydmxcontrol" },
     { name = "pyinstaller" },
     { name = "pyserial" },
+    { name = "python-artnet" },
     { name = "pywebview" },
+    { name = "sacn" },
     { name = "stupidartnet" },
     { name = "vidgear" },
 ]
 
 [package.metadata]
 requires-dist = [
+    { name = "aioartnet", specifier = ">=0.2.1" },
     { name = "aiortc", specifier = ">=1.14.0" },
     { name = "deffcode", specifier = ">=0.2.6" },
     { name = "nicegui", specifier = ">=2.22.1" },
@@ -946,7 +959,9 @@ requires-dist = [
     { name = "pydmxcontrol", specifier = ">=2.0.0" },
     { name = "pyinstaller", specifier = ">=6.18.0" },
     { name = "pyserial", specifier = ">=3.5" },
+    { name = "python-artnet", specifier = ">=1.2.0" },
     { name = "pywebview", specifier = ">=6.0" },
+    { name = "sacn", specifier = ">=1.11.0" },
     { name = "stupidartnet", specifier = ">=1.4.0" },
     { name = "vidgear", specifier = ">=0.3.4" },
 ]
@@ -1897,6 +1912,15 @@ wheels = [
 ]
 
 [[package]]
+name = "python-artnet"
+version = "1.2.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/03/19/07ca227964a9a0b1ab2312bdab3f51c3885b4aec269ae31a094bf2769eeb/python_artnet-1.2.0.tar.gz", hash = "sha256:ec4febafa86d9351ef8c27e32bfc097092bf179345599b0343113b2097a5cf0d", size = 9097 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/1e/25/ad33d6cdaed8599779cc0a9fad016490de0dbe4cc1a5a3c3ae95d89b2975/python_artnet-1.2.0-py3-none-any.whl", hash = "sha256:782dd23fe76a9fcd223fcc85f8c714d7a444ffe62dd1cfaccff3aac06720430a", size = 9482 },
+]
+
+[[package]]
 name = "python-dotenv"
 version = "1.1.1"
 source = { registry = "https://pypi.org/simple" }
@@ -2064,6 +2088,15 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/e1/0a/929373653770d8a0d7ea76c37de6e41f11eb07559b103b1c02cafb3f7cf8/requests-2.32.4.tar.gz", hash = "sha256:27d0316682c8a29834d3264820024b62a36942083d52caf2f14c0591336d3422", size = 135258 }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/7c/e4/56027c4a6b4ae70ca9de302488c5ca95ad4a39e190093d6c1a8ace08341b/requests-2.32.4-py3-none-any.whl", hash = "sha256:27babd3cda2a6d50b30443204ee89830707d396671944c998b5975b031ac2b2c", size = 64847 },
+]
+
+[[package]]
+name = "sacn"
+version = "1.11.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/8f/97/4758c6bffa58573b2076ce3f60d97a577bc017b2853026bc8e5ef39fbe9f/sacn-1.11.0.tar.gz", hash = "sha256:148b39ca7f3dd616878a70a62b7410d094080977e784f8a6302f352d7395e0ea", size = 41432 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/7c/9a/ab6d66017f102898f1b74d55aad3072fb66f3b741a38b3f45edad45dfb94/sacn-1.11.0-py3-none-any.whl", hash = "sha256:4c0c294746c6b8e9290bcc3db7b15483b28a716247d9d762de18597fb703a4fc", size = 49094 },
 ]
 
 [[package]]
