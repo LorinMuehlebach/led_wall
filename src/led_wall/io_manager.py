@@ -16,7 +16,7 @@ from nicegui import ui
 from led_wall.ui.settings_manager import SettingsElement, SettingsManager
 from led_wall.utils import Color
 from led_wall.ui.dmx_channels import DMX_channels_Input
-from led_wall.ui.preview_window import preview_setup
+from led_wall.ui.preview_window import preview_setup, create_preview_frame
 
 logger = getLogger(__name__)
 
@@ -502,34 +502,6 @@ class IO_Manager():
     def update_DMX_channels(self, channels):
         self.dmx_channel_inputs.update_sliders(channels)
 
-    #needs to be static to be handled correctly it cannot depend on self
-    def create_preview_frame(self) -> np.ndarray:
-        """
-        returns the preview frame for the led wall.
-        """
-
-        frame = np.zeros((self.resolution[0], self.resolution[1], 3), dtype=np.uint8)
-        if self.pixel_channels == 4:
-            for i in range(self.resolution[0]):
-                for j in range(self.resolution[1]):
-                    frame[i,j] = np.array(Color.convert_rgbw2rgb(self.output_buffer[i,j]),dtype=np.uint8)
-        else:
-            frame = self.output_buffer
-
-
-        frame = np.transpose(frame,(1,0,2)) #flip x and y axis
-        frame = np.flip(frame, axis=2) # cv2 expects BGR format so we flip the RGB channels
-        preblur_scaling = 4
-        scaled_frame = cv2.resize(frame, (self.resolution[0]*preblur_scaling, self.resolution[1]*preblur_scaling), interpolation=cv2.INTER_AREA)
-
-        #blurr the output
-        #kernel = np.ones((10,20),np.float32)/200
-        #blurred_image = cv2.filter2D(scaled_frame,-1,kernel)
-        #blurred_image = cv2.GaussianBlur(scaled_frame,(20,20),0)
-        blurred_image = cv2.GaussianBlur(scaled_frame, (15, 15), sigmaX=2, sigmaY=2)
-        final_frame = cv2.resize(blurred_image, (self.preview_width, self.preview_height), interpolation=cv2.INTER_AREA)
-        return final_frame
-
     def init_preview(self,preview_image: ui.interactive_image) -> callable:
         """
         initializes the preview window for the led wall.
@@ -549,5 +521,14 @@ class IO_Manager():
         if not self.preview_image:
             raise ValueError("Preview image not initialized. Call init_preview() first.")
 
-        #get_preview_frame = partial(self.create_preview_frame, self.output_buffer, self.preview_width, self.preview_height)
-        preview_setup(self.preview_image, get_preview_frame=self.create_preview_frame)
+        # Closure to get the latest buffer and parameters
+        def get_preview():
+            return create_preview_frame(
+                output_buffer=self.output_buffer,
+                resolution=self.resolution,
+                pixel_channels=self.pixel_channels,
+                preview_width=self.preview_width,
+                preview_height=self.preview_height
+            )
+
+        self.preview_timer = preview_setup(self.preview_image, get_preview_frame=None, io_manager=self)

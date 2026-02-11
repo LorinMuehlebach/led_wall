@@ -9,6 +9,16 @@ from fastapi import Response
 
 from nicegui import Client, app, core, run, ui
 
+USE_THREAD_FOR_PREVIEW = False
+
+# Flag to prevent processing during shutdown
+_is_shutting_down = False
+
+@app.on_shutdown
+def _handle_preview_shutdown():
+    global _is_shutting_down
+    _is_shutting_down = True
+
 # In case you don't have a webcam, this will provide a black placeholder image.
 black_1px = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAAXNSR0IArs4c6QAAAA1JREFUGFdjYGBg+A8AAQQBAHAgZQsAAAAASUVORK5CYII='
 placeholder = Response(content=base64.b64decode(black_1px.encode('ascii')), media_type='image/png')
@@ -23,7 +33,38 @@ def convert(frame: np.ndarray) -> bytes:
     return imencode_image.tobytes()
 
 
-def preview_setup(video_image:ui.interactive_image,webcam:bool = False,get_preview_frame:Callable[[], np.ndarray]=None, interval: float = 0.1, url_path: str = '/video/frame') -> ui.timer:
+def create_preview_frame(output_buffer: np.ndarray, resolution: tuple[int, int], pixel_channels: int, preview_width: int, preview_height: int) -> np.ndarray:
+    """
+    returns the preview frame for the led wall.
+    """
+    from led_wall.utils import Color
+    
+    frame = np.zeros((resolution[0], resolution[1], 3), dtype=np.uint8)
+    if pixel_channels == 4:
+        # Vectorized RGBW to RGB conversion
+        white_contrib = (output_buffer[:, :, 3:4].astype(np.uint16) * np.array(Color.WHITE)) // 255
+        frame = np.minimum(output_buffer[:, :, :3].astype(np.uint16) + white_contrib, 255).astype(np.uint8)
+    else:
+        frame = output_buffer
+
+    frame = np.transpose(frame, (1, 0, 2))  # flip x and y axis
+    frame = np.flip(frame, axis=2)  # cv2 expects BGR format so we flip the RGB channels
+    preblur_scaling = 4
+    scaled_frame = cv2.resize(frame, (resolution[0] * preblur_scaling, resolution[1] * preblur_scaling), interpolation=cv2.INTER_AREA)
+
+    # blur the output
+    blurred_image = cv2.GaussianBlur(scaled_frame, (15, 15), sigmaX=2, sigmaY=2)
+    final_frame = cv2.resize(blurred_image, (preview_width, preview_height), interpolation=cv2.INTER_AREA)
+    return final_frame
+
+
+def create_preview_image(output_buffer,resolution,pixel_channels,preview_height = 200) -> bytes:
+    preview_width = int((resolution[1] / resolution[0]) * preview_height)
+    frame = create_preview_frame(output_buffer, resolution, pixel_channels, preview_width, preview_height)
+    jpeg_bytes = convert(frame)
+    return jpeg_bytes
+
+def preview_setup(video_image:ui.interactive_image,webcam:bool = False,get_preview_frame:Callable[[], np.ndarray]=None, io_manager=None, interval: float = 0.1, url_path: str = '/video/frame') -> ui.timer:
     # OpenCV is used to access the webcam.
     if webcam:
         video_capture = cv2.VideoCapture(0)
@@ -32,10 +73,19 @@ def preview_setup(video_image:ui.interactive_image,webcam:bool = False,get_previ
         # This will provide a black placeholder image.
         video_capture = None
 
+
     @app.get(url_path)
     # Thanks to FastAPI's `app.get` it is easy to create a web route which always provides the latest image from OpenCV.
-    async def grab_video_frame() -> Response:        
+    async def grab_video_frame() -> Response:
+        if _is_shutting_down:
+            return placeholder
+
         if get_preview_frame is None:
+            if io_manager is not None:
+                args = (io_manager.output_buffer, io_manager.resolution, io_manager.pixel_channels)
+                jpeg = await run.cpu_bound(create_preview_image, *args)
+                return Response(content=jpeg, media_type='image/jpeg')
+            
             if not webcam:
                 return placeholder
         
@@ -53,7 +103,13 @@ def preview_setup(video_image:ui.interactive_image,webcam:bool = False,get_previ
         if isinstance(frame, bytes):
             return Response(content=frame, media_type='image/jpeg')
             
-        jpeg = await run.cpu_bound(convert, frame)
+        try:
+            if USE_THREAD_FOR_PREVIEW:
+                jpeg = await run.cpu_bound(convert, frame)
+            else:
+                jpeg = convert(frame)
+        except Exception:
+            return placeholder
         return Response(content=jpeg, media_type='image/jpeg')
 
     # For non-flickering image updates and automatic bandwidth adaptation an interactive image is much better than `ui.image()`.
