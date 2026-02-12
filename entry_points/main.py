@@ -225,6 +225,7 @@ if (not DEV or __name__ != "__main__") and multiprocessing.current_process().nam
     # def index():
     #     print("Here are some tasks you want to run before every page load")
     #     ui.label("You page definitions go here")
+    port = 8080
 
     with ui.footer().classes('bg-transparent text-gray-500 flex justify-between items-center px-4 py-1'):
         ui.label('Created by Lorin Mühlebach').classes('text-xs font-light')
