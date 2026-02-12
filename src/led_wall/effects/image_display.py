@@ -4,7 +4,7 @@ from led_wall.ui.media_manager import MediaManager
 from led_wall.ui.settings_manager import SettingsManager
 
 class ImageDisplay(BaseEffect):
-    NAME = 'Image Display'
+    NAME = 'Bild'
     DESCRIPTION = 'Display an image on the LED wall with scaling and mapping options'
 
     def __init__(self, resolution: tuple[int, int], dimensions: tuple[int, int], rgbw: bool, settings_manager: SettingsManager = None) -> None:

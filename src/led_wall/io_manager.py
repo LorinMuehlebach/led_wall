@@ -42,7 +42,7 @@ class IO_Manager():
         """
         self.settings_manager = SettingsManager(parent=settings_manager, name="io_settings")
         self.dmx_channel_inputs = DMX_channels_Input(14)
-        self.input_source = "artnet" #can be "artnet", "dmx" or "none"
+        self.input_source =  "sacn" #can be "artnet", "dmx" or "none"
 
         #artnet input
         self.artnet_server = None  # ArtNetServer instance for input
@@ -140,7 +140,7 @@ class IO_Manager():
                     settings_id='input_source',
                     default_value=self.input_source,
                     on_change=lambda e, self=self: setattr(self, 'input_source', e.value) or self.input_init(), #reinitialize input on change
-                    options=["artnet","dmx","none"],
+                    options=["artnet","sacn","dmx","none"],
                     manager=self.settings_manager
                 ),
                 SettingsElement(
@@ -395,7 +395,7 @@ class IO_Manager():
         self.receiver.start()  # start the receiving thread
         
         # define a callback function
-        @self.receiver.listen_on('universe', universe=universum)  # listens on universe 1
+        @self.receiver.listen_on('universe', universe=self.input_universe)  # listens on universe 1
         def callback(packet:sacn.DataPacket):  # packet type: sacn.DataPacket
             if packet.dmxStartCode == 0x00:  # ignore non-DMX-data packets
                 start = self.input_dmx_address - 1
@@ -406,11 +406,11 @@ class IO_Manager():
                     self.dmx_channel_inputs.update_sliders(values, external=True)
 
         # optional: if multicast is desired, join with the universe number as parameter
-        self.receiver.join_multicast(universum)
+        self.receiver.join_multicast(self.input_universe)
 
-    def input_sacn_stop(self, universum:int=None):
+    def input_sacn_stop(self):
         # optional: if multicast was previously joined
-        self.receiver.leave_multicast(universum)
+        self.receiver.leave_multicast(self.input_universe)
         self.receiver.stop()
 
 

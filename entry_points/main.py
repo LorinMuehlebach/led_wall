@@ -11,10 +11,16 @@ from led_wall.effects.effect_manager import EffectManager
 from led_wall.ui.dmx_channels import DMX_channels_Input
 from led_wall.ui.settings_manager import SettingsElement, SettingsManager
 from led_wall.io_manager import IO_Manager, get_local_ip
+from dotenv import load_dotenv
 
+load_dotenv()  # Load environment variables from .env file
 logger = getLogger("main")
 
+user_data_dir = os.getenv("APPDATA") or os.path.expanduser("~/.config")  # Use APPDATA on Windows, otherwise use ~/.config
+settings_dir = os.getenv("LED_WALL_DIR", os.path.join(user_data_dir, "LED_Wall"))  # Get the directory from environment variable, default to current directory
+
 DEV = False
+port = 8080
 if (not DEV or __name__ != "__main__") and multiprocessing.current_process().name == 'MainProcess': # you can do `if True:` to bypass this to revert to the normal behavior, but that is slow...
     # Explanation: 2 reasons for running this code:
     # 1. not in dev mode, so there is no __mp_main__, this is already where NiceGUI will run
@@ -30,7 +36,7 @@ if (not DEV or __name__ != "__main__") and multiprocessing.current_process().nam
     # _ = setup_translate() #lazy translate function
 
     #top level SettingsManager
-    settings_manager = SettingsManager(path='settings.json')
+    settings_manager = SettingsManager(path=os.path.join(settings_dir, 'settings.json'))
 
     #initialize main settings
     app_settings = SettingsManager(parent=settings_manager, name="main_settings")
@@ -47,9 +53,10 @@ if (not DEV or __name__ != "__main__") and multiprocessing.current_process().nam
     io_manager = IO_Manager(settings_manager=settings_manager)
 
     # Serve media files
-    if not os.path.exists('media'):
-        os.makedirs('media')
-    app.add_static_files('/media', 'media')
+    media_dir = os.path.join(settings_dir, 'media')
+    if not os.path.exists(media_dir):
+        os.makedirs(media_dir)
+    app.add_static_files('/media', media_dir)
 
     effect_manager = None
 
@@ -204,6 +211,7 @@ if (not DEV or __name__ != "__main__") and multiprocessing.current_process().nam
                     element.create_ui()
 
             io_manager.ui_settings()  # Create the settings UI for IO Manager
+            ui.button("open settings folder", on_click=lambda: os.startfile(settings_dir)).classes('w-full')
 
     
     # print("Here are a bunch of startup tasks that must be run once, and before the server starts")
@@ -217,10 +225,10 @@ if (not DEV or __name__ != "__main__") and multiprocessing.current_process().nam
     # def index():
     #     print("Here are some tasks you want to run before every page load")
     #     ui.label("You page definitions go here")
-    
+
     with ui.footer().classes('bg-transparent text-gray-500 flex justify-between items-center px-4 py-1'):
         ui.label('Created by Lorin Mühlebach').classes('text-xs font-light')
-        ui.label(f'Server: {get_local_ip()}:8080').classes('text-xs font-light')
+        ui.label(f'Server: {get_local_ip()}:{port}').classes('text-xs font-light')
 
     def delayed_startup_tasks():
         #print("Here are a bunch of startup tasks that also must be run once, but can be after the server has started")
@@ -237,9 +245,11 @@ if multiprocessing.current_process().name == 'MainProcess':
     ui.run(
         title='Led Wall',
         host="0.0.0.0",
-        port=8080,
+        port=port,
         reload=DEV,
-        native=True,
-        window_size=(1800, 1000),
+        #fullscreen=True,
+        #frameless=False,
+        #native=True,
+        window_size=(1200, 900),
         dark=True
     )

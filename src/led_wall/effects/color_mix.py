@@ -9,7 +9,7 @@ from led_wall.effects.base_effect import BaseEffect
 from led_wall.datatypes import RGBW_Color, Fader
 from led_wall.ui.settings_manager import SettingsElement
 from led_wall.ui.media_manager import MediaManager
-from led_wall.ui.video_manager import VideoManager
+#from led_wall.ui.video_manager import VideoManager
 
 logger = logging.getLogger("utils")
 logger.setLevel(logging.DEBUG)
@@ -33,13 +33,13 @@ class ColorMix(BaseEffect):
         self.media_manager.scale_id = "noise_image_scale"
         self.media_manager.rotation_id = "noise_image_rotation"
 
-        self.video_manager = VideoManager(settings_manager, resolution=resolution, dimensions=dimensions, grayscale=True)
-        self.video_manager.media_path_setting_id = "noise_video_file"
-        self.video_manager.fill_mode_setting_id = "noise_video_mapping"
-        self.video_manager.offset_x_id = "noise_video_offset_x"
-        self.video_manager.offset_y_id = "noise_video_offset_y"
-        self.video_manager.scale_id = "noise_video_scale"
-        self.video_manager.rotation_id = "noise_video_rotation"
+        # self.video_manager = VideoManager(settings_manager, resolution=resolution, dimensions=dimensions, grayscale=True)
+        # self.video_manager.media_path_setting_id = "noise_video_file"
+        # self.video_manager.fill_mode_setting_id = "noise_video_mapping"
+        # self.video_manager.offset_x_id = "noise_video_offset_x"
+        # self.video_manager.offset_y_id = "noise_video_offset_y"
+        # self.video_manager.scale_id = "noise_video_scale"
+        # self.video_manager.rotation_id = "noise_video_rotation"
         
         super().__init__(resolution, dimensions, rgbw, settings_manager)
         
@@ -278,8 +278,8 @@ class ColorMix(BaseEffect):
                 tabs.value = noise_tab
             elif current_mode == 'Image':
                 tabs.value = image_tab
-            elif current_mode == 'Video':
-                tabs.value = video_tab
+            # elif current_mode == 'Video':
+            #     tabs.value = video_tab
         
         with ui.tab_panels(tabs, value=tabs.value).classes('w-full') as panels:
             with ui.tab_panel(noise_tab).classes('w-full'):
@@ -334,9 +334,9 @@ class ColorMix(BaseEffect):
                 # Use our media_manager instance to show image selection and mapping
                 self.media_manager.create_ui(add_preview=True, padding=False)
 
-            with ui.tab_panel(video_tab).classes('w-full p-0'):
-                # Use our video_manager instance to show video selection and mapping
-                self.video_manager.create_ui(add_preview=True, padding=False)
+            # with ui.tab_panel(video_tab).classes('w-full p-0'):
+            #     # Use our video_manager instance to show video selection and mapping
+            #     self.video_manager.create_ui(add_preview=True, padding=False)
 
     def handle_tab_change(self, event):
         new_mode = event.args[0] if isinstance(event.args, list) else event.args

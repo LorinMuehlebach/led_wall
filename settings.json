@@ -3,10 +3,10 @@
         "Show1": {
             "active_effect_0": "SingleColor",
             "active_effect_1": "ImageDisplay",
-            "active_effect_2": "ColorMix",
-            "active_effect_3": "SingleColor",
-            "active_effect_4": "ColorMix",
-            "active_effect_5": "SingleColor",
+            "active_effect_2": "VideoPlay",
+            "active_effect_3": "ColorMix",
+            "active_effect_4": "ImageDisplay",
+            "active_effect_5": "ColorMix",
             "active_effect_6": "SingleColor",
             "active_effect_7": "SingleColor",
             "effect_settings_1": {
@@ -19,18 +19,13 @@
                 "noise_image_scale": 1.0
             },
             "effect_settings_2": {
-                "video_file": "BigBuckBunny_320x180.mp4",
-                "noise_pattern_type": 0,
-                "noise_image_file": "demo_img.png",
-                "noise_image_mapping": "Verh\u00e4ltniss",
-                "noise_image_offset_x": 0.0,
-                "noise_image_offset_y": 0.0,
-                "noise_image_scale": 1.0,
-                "mix_mode": "Video"
+                "mix_mode": "Noise",
+                "noise_pattern_type": 1,
+                "speed": 50,
+                "video_file": "BigBuckBunny_320x180.mp4"
             },
-            "effect_settings_3": {
-                "video_file": "rtsp://admin:12345@192.168.1.210:554/Streaming/Channels/101",
-                "convert_to_rgbw": false
+            "effect_settings_4": {
+                "media_file": "demo_img.png"
             }
         }
     },
@@ -58,7 +53,7 @@
         "skip_universes": 3,
         "device_order_reversed": true,
         "device_universes": 8.0,
-        "flip_top_bottom": false,
-        "flip_left_right": false
+        "flip_top_bottom": true,
+        "flip_left_right": true
     }
 }
