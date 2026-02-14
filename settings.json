@@ -1,32 +1,6 @@
 {
     "presets": {
         "Show1": {
-            "active_effect_0": "SingleColor",
-            "active_effect_1": "ImageDisplay",
-            "active_effect_2": "VideoPlay",
-            "active_effect_3": "ColorMix",
-            "active_effect_4": "ImageDisplay",
-            "active_effect_5": "ColorMix",
-            "active_effect_6": "SingleColor",
-            "active_effect_7": "SingleColor",
-            "effect_settings_1": {
-                "media_file": "demo_img.png",
-                "noise_pattern_type": 1,
-                "noise_image_file": null,
-                "noise_image_mapping": "Verh\u00e4ltniss",
-                "noise_image_offset_x": 0.0,
-                "noise_image_offset_y": 0.0,
-                "noise_image_scale": 1.0
-            },
-            "effect_settings_2": {
-                "mix_mode": "Noise",
-                "noise_pattern_type": 1,
-                "speed": 50,
-                "video_file": "BigBuckBunny_320x180.mp4"
-            },
-            "effect_settings_4": {
-                "media_file": "demo_img.png"
-            }
         }
     },
     "main_settings": {

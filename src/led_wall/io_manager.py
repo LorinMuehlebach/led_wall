@@ -40,6 +40,8 @@ class IO_Manager():
             framerate (int): The framerate of the output.
 
         """
+        self.is_initialized = False
+        print("Initializing IO Manager...")
         self.settings_manager = SettingsManager(parent=settings_manager, name="io_settings")
         self.dmx_channel_inputs = DMX_channels_Input(14)
         self.input_source =  "sacn" #can be "artnet", "dmx" or "none"
@@ -52,6 +54,7 @@ class IO_Manager():
 
         
         self.pixel_channels = 4
+        self.gamma_correction = list(OutputCorrection.available_methods().keys())[0] #default to linear (no correction)
         self.resolution = (30,58) #resolution of the LED wall in pixels
         self.dimensions = (6, 3) #dimension of the LED wall in meters
         self.framerate = framerate
@@ -67,6 +70,7 @@ class IO_Manager():
 
         self.flip_top_bottom = False
         self.flip_left_right = False
+        self.black_on_exit = True
 
         self.settings_menu = {
             "Display": [
@@ -248,6 +252,31 @@ class IO_Manager():
                     precision=0,
                     manager=self.settings_manager
                 ),
+                SettingsElement(
+                    label='Gamma Korrektur',
+                    input=ui.select,
+                    settings_id='gamma_correction',
+                    default_value=self.gamma_correction,
+                    on_change=lambda e, self=self: setattr(self, 'gamma_correction', e.value),
+                    options=list(OutputCorrection.available_methods().keys()),
+                    manager=self.settings_manager
+                ),
+                SettingsElement(
+                    label='Schwarz beim beenden',
+                    input=ui.switch,
+                    settings_id='black_on_exit',
+                    default_value=self.black_on_exit,
+                    on_change=lambda e, self=self: setattr(self, 'black_on_exit', e.value),
+                    manager=self.settings_manager
+                ),
+                SettingsElement(
+                    label='tests',
+                    input=ui.switch,
+                    settings_id='black_on_exit',
+                    default_value=self.black_on_exit,
+                    on_change=lambda e, self=self: setattr(self, 'black_on_exit', e.value),
+                    manager=self.settings_manager
+                )
             ]
         }
 
@@ -341,6 +370,14 @@ class IO_Manager():
                 logger.error(f"Error stopping loop thread: {e}")
 
     def __del__(self):
+        #write screen black on delete
+        if self.black_on_exit:
+            if self.artnet_sender:
+                black_frame = np.zeros((self.resolution[0], self.resolution[1], self.pixel_channels), dtype=np.uint8)
+                self.output_buffer = black_frame
+                self.update_artnet_output()
+                time.sleep(0.5) #wait a bit to ensure the frame is sent before closing the sender
+
         self.stop_loop()
 
     def step(self):
@@ -384,11 +421,15 @@ class IO_Manager():
             pass #nothing to initialize for DMX input as we read the channels directly from the sliders
 
     def input_sacn_init(self, universum:int=None, port:int=None):
+        if not self.is_initialized:
+            return
+        
         if universum is not None:
             self.input_universe = universum
         if port is not None:
             self.input_port = port
 
+        logger.debug(f"Initializing sACN input: universe={self.input_universe}, port={self.input_port}")
         import sacn
         # provide an IP-Address to bind to if you want to receive multicast packets from a specific interface
         self.receiver = sacn.sACNreceiver()
@@ -412,7 +453,6 @@ class IO_Manager():
         # optional: if multicast was previously joined
         self.receiver.leave_multicast(self.input_universe)
         self.receiver.stop()
-
 
     def input_artnet_init(self,universum:int=None, port:int=None):
         if universum is not None:
@@ -506,6 +546,11 @@ class IO_Manager():
             output_buffer = np.flip(output_buffer, axis=1) # flip vertically
         if self.flip_left_right:
             output_buffer = np.flip(output_buffer, axis=0) # flip horizontally
+
+        #apply gamma correction if enabled
+        if self.gamma_correction != list(OutputCorrection.available_methods().keys())[0]: #if not linear (no correction)
+            output_buffer = OutputCorrection.apply(output_buffer, method=self.gamma_correction)
+            
         
         if self.addressing_direction == 'vertical':
             for x in range(width):
@@ -592,6 +637,7 @@ class IO_Manager():
         self.preview_timer = preview_setup(self.preview_image, get_preview_frame=None, io_manager=self)
 
 def get_local_ip():
+    import socket
     try:
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         s.connect(("8.8.8.8", 80))
@@ -600,3 +646,22 @@ def get_local_ip():
         return ip
     except Exception:
         return "127.0.0.1"
+
+
+class OutputCorrection:
+    @staticmethod
+    def apply(output_buffer: np.ndarray, method: str, max_val: int = 0xFF) -> np.ndarray:
+        if method == 'linear':
+            return output_buffer
+        elif method == 'quadratic':
+            return ((output_buffer ** 2) / max_val).astype(np.uint8)
+        elif method == 'cubic':
+            return ((output_buffer ** 3) / (max_val ** 2)).astype(np.uint8)
+        elif method == 'quadruple':
+            return ((output_buffer ** 4) / (max_val ** 3)).astype(np.uint8)
+        else:
+            raise ValueError(f"Unknown correction method: {method}")
+
+    @staticmethod
+    def available_methods():
+        return {"linear": "Linear (no correction)", "quadratic": "Quadratic", "cubic": "Cubic", "quadruple": "Quadruple"}

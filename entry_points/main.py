@@ -6,9 +6,9 @@ import logging
 import multiprocessing
 import socket
 
+from nicegui import ui
 from led_wall.ui.logging_config import getLogger
 from led_wall.effects.effect_manager import EffectManager
-from led_wall.ui.dmx_channels import DMX_channels_Input
 from led_wall.ui.settings_manager import SettingsElement, SettingsManager
 from led_wall.io_manager import IO_Manager, get_local_ip
 from dotenv import load_dotenv
@@ -16,17 +16,33 @@ from dotenv import load_dotenv
 load_dotenv()  # Load environment variables from .env file
 logger = getLogger("main")
 
+
 user_data_dir = os.getenv("APPDATA") or os.path.expanduser("~/.config")  # Use APPDATA on Windows, otherwise use ~/.config
 settings_dir = os.getenv("LED_WALL_DIR", os.path.join(user_data_dir, "LED_Wall"))  # Get the directory from environment variable, default to current directory
 
+def is_port_in_use(port):
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        return s.connect_ex(('localhost', port)) == 0
+
 DEV = False
 port = 8080
-if (not DEV or __name__ != "__main__") and multiprocessing.current_process().name == 'MainProcess': # you can do `if True:` to bypass this to revert to the normal behavior, but that is slow...
+# while is_port_in_use(port):
+#     print(f"Port {port} is in use, trying {port + 1}...")
+#     port += 1
+
+initialized = os.getenv("LEINWAND_STARTED","0") == "1"
+if initialized:
+    pass
+    #exit()
+
+os.environ["LEINWAND_STARTED"] = "1"
+
+if __name__ == '__mp_main__' or not DEV: # you can do `if True:` to bypass this to revert to the normal behavior, but that is slow...
     # Explanation: 2 reasons for running this code:
     # 1. not in dev mode, so there is no __mp_main__, this is already where NiceGUI will run
     # 2. or, in dev mode, and this is the __mp_main__, so we want to run this code
-
-    initialized = False
+    
+    
     from nicegui import ui, app, Client, core
     from nicegui.events import ValueChangeEventArguments
 
@@ -225,7 +241,6 @@ if (not DEV or __name__ != "__main__") and multiprocessing.current_process().nam
     # def index():
     #     print("Here are some tasks you want to run before every page load")
     #     ui.label("You page definitions go here")
-    port = 8080
 
     with ui.footer().classes('bg-transparent text-gray-500 flex justify-between items-center px-4 py-1'):
         ui.label('Created by Lorin Mühlebach').classes('text-xs font-light')
@@ -242,15 +257,14 @@ if (not DEV or __name__ != "__main__") and multiprocessing.current_process().nam
     app.on_startup(delayed_startup_tasks)
 
 
-if multiprocessing.current_process().name == 'MainProcess':
-    ui.run(
-        title='Led Wall',
-        host="0.0.0.0",
-        port=port,
-        reload=DEV,
-        #fullscreen=True,
-        #frameless=False,
-        #native=True,
-        window_size=(1200, 900),
-        dark=True
-    )
+ui.run(
+    title='Led Wall',
+    host="0.0.0.0",
+    reload=False,
+    port=8000,
+    #fullscreen=True,
+    #frameless=False,
+    #native=True,
+    #window_size=(1200, 900),
+    dark=True
+)
