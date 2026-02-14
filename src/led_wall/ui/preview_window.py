@@ -150,11 +150,11 @@ class OutputCorrection:
         if method == 'linear':
             return output_buffer
         elif method == 'quadratic':
-            return ((output_buffer ** 2) / max_val).astype(np.uint8)
+            return (max_val * ((output_buffer/max_val) ** 2)).astype(np.uint8)
         elif method == 'cubic':
-            return ((output_buffer ** 3) / (max_val ** 2)).astype(np.uint8)
+            return (max_val * ((output_buffer/max_val) ** 3)).astype(np.uint8)
         elif method == 'quadruple':
-            return ((output_buffer ** 4) / (max_val ** 3)).astype(np.uint8)
+            return (max_val * ((output_buffer/max_val) ** 4)).astype(np.uint8)
         elif method == '2.2 gamma':
             gamma = 2.2
             return (max_val * ((output_buffer / max_val) ** gamma)).astype(np.uint8)

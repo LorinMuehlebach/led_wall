@@ -21,6 +21,7 @@ settings_dir = os.getenv("LED_WALL_DIR", os.path.join(user_data_dir, "LED_Wall")
 
 DEV = False
 port = 8080
+
 if (not DEV or __name__ != "__main__") and multiprocessing.current_process().name == 'MainProcess': # you can do `if True:` to bypass this to revert to the normal behavior, but that is slow...
     # Explanation: 2 reasons for running this code:
     # 1. not in dev mode, so there is no __mp_main__, this is already where NiceGUI will run
@@ -225,7 +226,6 @@ if (not DEV or __name__ != "__main__") and multiprocessing.current_process().nam
     # def index():
     #     print("Here are some tasks you want to run before every page load")
     #     ui.label("You page definitions go here")
-    port = 8080
 
     with ui.footer().classes('bg-transparent text-gray-500 flex justify-between items-center px-4 py-1'):
         ui.label('Created by Lorin Mühlebach').classes('text-xs font-light')
