@@ -58,8 +58,10 @@ def create_preview_frame(output_buffer: np.ndarray, resolution: tuple[int, int],
     return final_frame
 
 
-def create_preview_image(output_buffer,resolution,pixel_channels,preview_height = 200) -> bytes:
+def create_preview_image(output_buffer,resolution,pixel_channels, gamma_correction:callable = None, preview_height = 200) -> bytes:
     preview_width = int((resolution[1] / resolution[0]) * preview_height)
+    if gamma_correction is not None:
+        output_buffer = OutputCorrection.apply(output_buffer, gamma_correction)
     frame = create_preview_frame(output_buffer, resolution, pixel_channels, preview_width, preview_height)
     jpeg_bytes = convert(frame)
     return jpeg_bytes
@@ -82,7 +84,7 @@ def preview_setup(video_image:ui.interactive_image,webcam:bool = False,get_previ
 
         if get_preview_frame is None:
             if io_manager is not None:
-                args = (io_manager.output_buffer, io_manager.resolution, io_manager.pixel_channels)
+                args = (io_manager.output_buffer, io_manager.resolution, io_manager.pixel_channels, io_manager.gamma_correction)
                 jpeg = await run.cpu_bound(create_preview_image, *args)
                 return Response(content=jpeg, media_type='image/jpeg')
             
@@ -140,3 +142,29 @@ def preview_setup(video_image:ui.interactive_image,webcam:bool = False,get_previ
 # All the setup is only done when the server starts. This avoids the webcam being accessed
 # by the auto-reload main process (see https://github.com/zauberzeug/nicegui/discussions/2321).
 #app.on_startup(preview_setup)
+
+
+class OutputCorrection:
+    @staticmethod
+    def apply(output_buffer: np.ndarray, method: str, max_val: int = 0xFF) -> np.ndarray:
+        if method == 'linear':
+            return output_buffer
+        elif method == 'quadratic':
+            return ((output_buffer ** 2) / max_val).astype(np.uint8)
+        elif method == 'cubic':
+            return ((output_buffer ** 3) / (max_val ** 2)).astype(np.uint8)
+        elif method == 'quadruple':
+            return ((output_buffer ** 4) / (max_val ** 3)).astype(np.uint8)
+        elif method == '2.2 gamma':
+            gamma = 2.2
+            return (max_val * ((output_buffer / max_val) ** gamma)).astype(np.uint8)
+        else:
+            raise ValueError(f"Unknown correction method: {method}")
+
+    @staticmethod
+    def available_methods():
+        return {"linear": "Linear (no correction)", 
+                "quadratic": "Quadratic", 
+                "cubic": "Cubic", 
+                "quadruple": "Quadruple",
+                "2.2 gamma": "Gamma 2.2 (approximation of sRGB)"}

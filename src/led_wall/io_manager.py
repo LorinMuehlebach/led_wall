@@ -64,7 +64,8 @@ class IO_Manager():
         self.consecutive_universes = 5
         self.device_order_reversed = True
         self.device_universes = 8
-
+        self.black_on_close = True #whether to send black on close of the application, can be disabled for testing to prevent issues with StupidArtnet when restarting the loop multiple times in a short time
+        self.gamma_correction = list(OutputCorrection.available_methods().keys())[0] #available gamma correction methods for the output, can be set to a specific method or None to disable gamma correction
         self.flip_top_bottom = False
         self.flip_left_right = False
 
@@ -248,6 +249,23 @@ class IO_Manager():
                     precision=0,
                     manager=self.settings_manager
                 ),
+                SettingsElement(
+                    label='black on close',
+                    input=ui.switch,
+                    settings_id='black_on_close',
+                    default_value=self.black_on_close,
+                    on_change=lambda e, self=self: setattr(self, 'black_on_close', e.value),
+                    manager=self.settings_manager
+                ),
+                SettingsElement(
+                    label='gamma correction',
+                    input=ui.select,
+                    settings_id='gamma_correction',
+                    default_value=self.gamma_correction,
+                    on_change=lambda e, self=self: setattr(self, 'gamma_correction', e.value),
+                    options=OutputCorrection.available_methods(),
+                    manager=self.settings_manager
+                ),
             ]
         }
 
@@ -321,6 +339,9 @@ class IO_Manager():
             self.artnet_sender.stop()
             del self.artnet_sender
 
+        #TODO switch between multiple input sources and stop the corresponding input when switching
+        self.input_sacn_stop()
+
         if self.run_thread.is_alive() and self.run_thread is not current_thread():
             try:
                 self.run_thread.join(timeout=2.0)
@@ -341,6 +362,11 @@ class IO_Manager():
                 logger.error(f"Error stopping loop thread: {e}")
 
     def __del__(self):
+        if self.black_on_close:
+            # Send black frame on close to prevent issues with StupidArtnet when restarting the loop multiple times in a short time
+            self.output_buffer = np.zeros((self.resolution[0], self.resolution[1], self.pixel_channels), dtype=np.uint8)
+            self.update_artnet_output()
+
         self.stop_loop()
 
     def step(self):
@@ -389,6 +415,9 @@ class IO_Manager():
         if port is not None:
             self.input_port = port
 
+        if not getattr(self, 'is_initialized', False):
+            return
+
         import sacn
         # provide an IP-Address to bind to if you want to receive multicast packets from a specific interface
         self.receiver = sacn.sACNreceiver()
@@ -412,7 +441,6 @@ class IO_Manager():
         # optional: if multicast was previously joined
         self.receiver.leave_multicast(self.input_universe)
         self.receiver.stop()
-
 
     def input_artnet_init(self,universum:int=None, port:int=None):
         if universum is not None:
@@ -592,6 +620,7 @@ class IO_Manager():
         self.preview_timer = preview_setup(self.preview_image, get_preview_frame=None, io_manager=self)
 
 def get_local_ip():
+    import socket
     try:
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         s.connect(("8.8.8.8", 80))
@@ -600,3 +629,29 @@ def get_local_ip():
         return ip
     except Exception:
         return "127.0.0.1"
+
+
+class OutputCorrection:
+    @staticmethod
+    def apply(output_buffer: np.ndarray, method: str, max_val: int = 0xFF) -> np.ndarray:
+        if method == 'linear':
+            return output_buffer
+        elif method == 'quadratic':
+            return ((output_buffer ** 2) / max_val).astype(np.uint8)
+        elif method == 'cubic':
+            return ((output_buffer ** 3) / (max_val ** 2)).astype(np.uint8)
+        elif method == 'quadruple':
+            return ((output_buffer ** 4) / (max_val ** 3)).astype(np.uint8)
+        elif method == '2.2 gamma':
+            gamma = 2.2
+            return (max_val * ((output_buffer / max_val) ** gamma)).astype(np.uint8)
+        else:
+            raise ValueError(f"Unknown correction method: {method}")
+
+    @staticmethod
+    def available_methods():
+        return {"linear": "Linear (no correction)", 
+                "quadratic": "Quadratic", 
+                "cubic": "Cubic", 
+                "quadruple": "Quadruple",
+                "2.2 gamma": "Gamma 2.2 (approximation of sRGB)"}

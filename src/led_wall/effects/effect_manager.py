@@ -75,7 +75,6 @@ class EffectManager():
 
         self.IO_manager.create_frame = self.run_loop
         
-
     @ui.refreshable
     def effect_manager_ui(self):
         self.all_tabs = []
@@ -85,9 +84,6 @@ class EffectManager():
             for i in range(self.nof_effects):
                 self.all_tabs.append(ui.tab(f'{i+1}'))
         
-        # Sync the tabs.value to the specific tab object
-        self.tabs.value = self.all_tabs[self.active_effect]
-
         with ui.tab_panels(self.tabs, value=self.all_tabs[self.active_effect]).classes('w-full'):
             for tab_idx in range(len(self.effect_type)):
                 with ui.tab_panel(self.all_tabs[tab_idx]):
@@ -120,8 +116,7 @@ class EffectManager():
                             
                             ui.button('Einstellungen', on_click=open_settings)
                         with ui.element("div").classes('flex-grow'):
-                            self.effects[tab_idx].ui_show()        
-
+                            self.effects[tab_idx].ui_show(self.IO_manager.get_channels())        
 
     @ui.refreshable
     def effect_setting_ui(self):
@@ -129,7 +124,7 @@ class EffectManager():
 
     @ui.refreshable
     def effect_show_ui(self):
-        self.effects[self.active_effect].ui_show()
+        self.effects[self.active_effect].ui_show(self.IO_manager.get_channels())
 
     def on_tab_change(self, event):
         """
@@ -177,7 +172,11 @@ class EffectManager():
         # Sync UI tabs if they exist
         if hasattr(self, 'tabs') and self.tabs and hasattr(self, 'all_tabs'):
             # Programmatic update of tabs.value switches the visible tab
-            self.tabs.value = self.all_tabs[self.active_effect]
+            tab_label = f'{self.active_effect + 1}'
+            #check if current tab label matches the active effect index, if not update it
+            if self.tabs.value != tab_label:
+                self.tabs.set_value(tab_label)  # This will trigger the on_tab_change event, which will update the channels accordingly
+                #self.tabs.value = tab_label
 
         # Refresh dependent UIs
         self.effect_setting_ui.refresh()
@@ -208,7 +207,7 @@ class EffectManager():
         if event is not None and event.value is None:
             return
 
-        logger.debug(f"Changing effect to {index} ({self.effects[self.active_effect].NAME})")
+        logger.info(f"Changing effect to {index} ({self.effects[self.active_effect].NAME})")
         self.change_active_effect(index=index)
         
         #update UI
@@ -310,5 +309,6 @@ class EffectManager():
             try:
                 self.IO_manager.stop_loop()
                 logger.info("Stopped IO manager loop")
+                del self.IO_manager
             except Exception as e:
                 logger.error(f"Error stopping IO manager: {e}")

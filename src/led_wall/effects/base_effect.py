@@ -123,7 +123,7 @@ class BaseEffect:
         pass
 
         
-    def ui_show(self) -> None:
+    def ui_show(self, channels=None) -> None:
         """
         Show the state of the effect in the UI.
         UI element provides all inputs needed at runtime.
@@ -143,8 +143,15 @@ class BaseEffect:
                     ui.label(element_name).classes('text-lg font-bold')
                     input_element = self.inputs[input_element]
                     input_element.ui_input()
-                    input_element.on_ui_input = lambda e, self=self: self.ui_change()
+                    input_element.on_ui_input = None #reset callback to avoid triggering it when the UI is created
                     self.ui_inputs.append(input_element)
+
+        #add callback to update the DMX channels when the UI is changed, but only if there are channels provided 
+        # (to avoid triggering it when the UI is created) 
+        if channels is not None:
+            self.update_inputs(channels)
+            for input in self.ui_inputs:
+                input.on_ui_input = lambda e, self=self: self.ui_change()
 
 
 if __name__ in {"__main__", "__mp_main__"}:
