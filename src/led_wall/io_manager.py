@@ -534,6 +534,9 @@ class IO_Manager():
             output_buffer = np.flip(output_buffer, axis=1) # flip vertically
         if self.flip_left_right:
             output_buffer = np.flip(output_buffer, axis=0) # flip horizontally
+
+        if self.gamma_correction is not None:
+            output_buffer = OutputCorrection.apply(output_buffer, self.gamma_correction)
         
         if self.addressing_direction == 'vertical':
             for x in range(width):
