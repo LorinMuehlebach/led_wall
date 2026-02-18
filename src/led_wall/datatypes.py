@@ -78,9 +78,12 @@ class Fader(InputType):
         kwargs["on_change"] = handle_change
         with ui.column():
             self.slider = Slider(min=0, max=255, value=0, vertical=True, reverse=True,**kwargs)
-            self.slider.bind_value(self, 'value')
             if self.add_value_label:
                 ui.label().bind_text_from(self.slider, 'value')
+        
+        if kwargs.get("add_binding",True):
+            self.slider.bind_value(self, 'value')
+
         return self.slider
 
     def _on_change(self,e):

@@ -142,7 +142,7 @@ class BaseEffect:
                     element_name = input_element.replace('_', ' ')
                     ui.label(element_name).classes('text-lg font-bold')
                     input_element = self.inputs[input_element]
-                    input_element.ui_input()
+                    input_element.ui_input(add_binding=False) #create the UI element for the input, but don't bind it to the input value yet to avoid triggering the callback when the UI is created
                     input_element.on_ui_input = None #reset callback to avoid triggering it when the UI is created
                     self.ui_inputs.append(input_element)
 
@@ -152,6 +152,10 @@ class BaseEffect:
             self.update_inputs(channels)
             for input in self.ui_inputs:
                 input.on_ui_input = lambda e, self=self: self.ui_change()
+
+                #TODO check if needed
+                if hasattr(input, "slider"): #if the input has a slider element, bind the slider value to the input value to update it when the slider is changed
+                    input.slider.bind_value(input, 'value') #bind the slider value to the input value to update it when the slider is changed
 
 
 if __name__ in {"__main__", "__mp_main__"}:
