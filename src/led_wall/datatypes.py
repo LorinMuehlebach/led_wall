@@ -69,6 +69,7 @@ class Fader(InputType):
         Creates a NiceGUI input element for the fader.
         """
         external_on_change = kwargs.get("on_change") 
+        add_binding = kwargs.pop("add_binding",True)
         
         def handle_change(e):
             self._on_change(e)
@@ -81,7 +82,7 @@ class Fader(InputType):
             if self.add_value_label:
                 ui.label().bind_text_from(self.slider, 'value')
         
-        if kwargs.get("add_binding",True):
+        if add_binding:
             self.slider.bind_value(self, 'value')
 
         return self.slider
