@@ -142,7 +142,7 @@ class BaseEffect:
                     element_name = input_element.replace('_', ' ')
                     ui.label(element_name).classes('text-lg font-bold')
                     input_element = self.inputs[input_element]
-                    input_element.ui_input(add_binding=False) #create the UI element for the input, but don't bind it to the input value yet to avoid triggering the callback when the UI is created
+                    input_element.ui_input() #create the UI element for the input, but don't bind it to the input value yet to avoid triggering the callback when the UI is created
                     input_element.on_ui_input = None #reset callback to avoid triggering it when the UI is created
                     self.ui_inputs.append(input_element)
 
