@@ -16,7 +16,7 @@ from nicegui import ui
 from led_wall.ui.settings_manager import SettingsElement, SettingsManager
 from led_wall.utils import Color
 from led_wall.ui.dmx_channels import DMX_channels_Input
-from led_wall.ui.preview_window import preview_setup, create_preview_frame
+from led_wall.ui.preview_window import preview_setup, create_preview_frame, OutputCorrection
 
 logger = getLogger(__name__)
 
@@ -28,7 +28,7 @@ class IO_Manager():
     output_buffer: np.ndarray = None
 
 
-    def __init__(self,settings_manager:SettingsManager,framerate:int=30,preview_in_window:bool=False) -> None:
+    def __init__(self,settings_manager:SettingsManager,framerate:int=50,preview_in_window:bool=False) -> None:
         """
         initializes the io manager.
 
@@ -378,6 +378,8 @@ class IO_Manager():
         channels = self.dmx_channel_inputs.get_channels()
         frame = self.create_frame(channels, last_output=self.output_buffer) if self.create_frame else self.output_buffer
 
+        #TODO add fade between frames
+
         self.output_buffer = frame
 
         self.update_artnet_output()
@@ -422,6 +424,8 @@ class IO_Manager():
         # provide an IP-Address to bind to if you want to receive multicast packets from a specific interface
         self.receiver = sacn.sACNreceiver()
         self.receiver.start()  # start the receiving thread
+
+        #TODO input fade?
         
         # define a callback function
         @self.receiver.listen_on('universe', universe=self.input_universe)  # listens on universe 1
@@ -634,27 +638,27 @@ def get_local_ip():
         return "127.0.0.1"
 
 
-class OutputCorrection:
-    @staticmethod
-    def apply(output_buffer: np.ndarray, method: str, max_val: int = 0xFF) -> np.ndarray:
-        if method == 'linear':
-            return output_buffer
-        elif method == 'quadratic':
-            return ((output_buffer ** 2) / max_val).astype(np.uint8)
-        elif method == 'cubic':
-            return ((output_buffer ** 3) / (max_val ** 2)).astype(np.uint8)
-        elif method == 'quadruple':
-            return ((output_buffer ** 4) / (max_val ** 3)).astype(np.uint8)
-        elif method == '2.2 gamma':
-            gamma = 2.2
-            return (max_val * ((output_buffer / max_val) ** gamma)).astype(np.uint8)
-        else:
-            raise ValueError(f"Unknown correction method: {method}")
+# class OutputCorrection:
+#     @staticmethod
+#     def apply(output_buffer: np.ndarray, method: str, max_val: int = 0xFF) -> np.ndarray:
+#         if method == 'linear':
+#             return output_buffer
+#         elif method == 'quadratic':
+#             return ((output_buffer ** 2) / max_val).astype(np.uint8)
+#         elif method == 'cubic':
+#             return ((output_buffer ** 3) / (max_val ** 2)).astype(np.uint8)
+#         elif method == 'quadruple':
+#             return ((output_buffer ** 4) / (max_val ** 3)).astype(np.uint8)
+#         elif method == '2.2 gamma':
+#             gamma = 2.2
+#             return (max_val * ((output_buffer / max_val) ** gamma)).astype(np.uint8)
+#         else:
+#             raise ValueError(f"Unknown correction method: {method}")
 
-    @staticmethod
-    def available_methods():
-        return {"linear": "Linear (no correction)", 
-                "quadratic": "Quadratic", 
-                "cubic": "Cubic", 
-                "quadruple": "Quadruple",
-                "2.2 gamma": "Gamma 2.2 (approximation of sRGB)"}
+#     @staticmethod
+#     def available_methods():
+#         return {"linear": "Linear (no correction)", 
+#                 "quadratic": "Quadratic", 
+#                 "cubic": "Cubic", 
+#                 "quadruple": "Quadruple",
+#                 "2.2 gamma": "Gamma 2.2 (approximation of sRGB)"}

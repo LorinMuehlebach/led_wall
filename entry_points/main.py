@@ -13,6 +13,11 @@ from led_wall.ui.settings_manager import SettingsElement, SettingsManager
 from led_wall.io_manager import IO_Manager, get_local_ip
 from dotenv import load_dotenv
 
+from multiprocessing import freeze_support
+from nicegui import app, ui
+
+
+
 load_dotenv()  # Load environment variables from .env file
 logger = getLogger("main")
 
@@ -22,16 +27,17 @@ settings_dir = os.getenv("LED_WALL_DIR", os.path.join(user_data_dir, "LED_Wall")
 DEV = False
 port = 8080
 
+app.native.window_args['transparent'] = True  # outside main guard
 if (not DEV or __name__ != "__main__") and multiprocessing.current_process().name == 'MainProcess': # you can do `if True:` to bypass this to revert to the normal behavior, but that is slow...
     # Explanation: 2 reasons for running this code:
     # 1. not in dev mode, so there is no __mp_main__, this is already where NiceGUI will run
     # 2. or, in dev mode, and this is the __mp_main__, so we want to run this code
+    if __name__ == '__main__':
+        freeze_support()  # first statement in main guard
 
     initialized = False
     from nicegui import ui, app, Client, core
     from nicegui.events import ValueChangeEventArguments
-
-    
 
     # from led_wall.ui.translate import setup_translate
     # _ = setup_translate() #lazy translate function
@@ -240,6 +246,7 @@ if (not DEV or __name__ != "__main__") and multiprocessing.current_process().nam
         #print("After-server-start startup tasks are done")
 
     app.on_startup(delayed_startup_tasks)
+    app.on_shutdown(lambda: shutdown_handler(None, None))  # Ensure the shutdown handler is called on server shutdown
 
 
 if multiprocessing.current_process().name == 'MainProcess':
@@ -247,10 +254,10 @@ if multiprocessing.current_process().name == 'MainProcess':
         title='Led Wall',
         host="0.0.0.0",
         port=port,
-        reload=DEV,
+        reload=False,
         #fullscreen=True,
         #frameless=False,
-        #native=True,
+        native=True,
         window_size=(1200, 900),
         dark=True
     )

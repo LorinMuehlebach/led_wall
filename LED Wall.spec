@@ -19,7 +19,7 @@ a = Analysis(
     pathex=['src'],
     binaries=[],
     datas=[
-        ('C:\\Users\\lorin\\Documents\\Programmieren\\LED_Wall\\.venv\\lib\\site-packages\\nicegui', 'nicegui'),
+        ('.venv\\lib\\site-packages\\nicegui', 'nicegui'),
         ('src/led_wall/effects', 'led_wall/effects'),
         ('src/led_wall/ui/*.vue', 'led_wall/ui'),
         ('src/led_wall/static', 'led_wall/static'),
