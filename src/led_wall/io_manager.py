@@ -448,7 +448,7 @@ class IO_Manager():
                 input_fps = 1 / dt if dt else float('inf')
                 self._last_output_ts = time.time()
                 if int(time.time()) % 30 == 0: #log every 30 seconds
-                    logger.info(f"Received sACN frame: Universe={packet.universe}, DMX Channels={len(packet.dmxData)}, Input FPS={input_fps:.2f}")
+                    print(f"Received sACN frame: Universe={packet.universe}, DMX Channels={len(packet.dmxData)}, Input FPS={input_fps:.2f}")
                 
                 if len(packet.dmxData) >= start + count:
                     values = list(packet.dmxData[start : start + count])
