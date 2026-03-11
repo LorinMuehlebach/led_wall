@@ -443,8 +443,9 @@ class IO_Manager():
             if packet.dmxStartCode == 0x00:  # ignore non-DMX-data packets
                 start = self.input_dmx_address - 1
                 count = self.dmx_channel_inputs.n_channels
-
-                input_fps = 1 / (time.time() - self._last_output_ts) if self._last_output_ts else float('inf')
+                
+                dt = time.time() - self._last_output_ts
+                input_fps = 1 / dt if dt else float('inf')
                 self._last_output_ts = time.time()
                 if int(time.time()) % 30 == 0: #log every 30 seconds
                     logger.info(f"Received sACN frame: Universe={packet.universe}, DMX Channels={len(packet.dmxData)}, Input FPS={input_fps:.2f}")
