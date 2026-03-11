@@ -46,7 +46,7 @@ class IO_Manager():
 
         #artnet input
         self.artnet_server = None  # ArtNetServer instance for input
-        self.input_universe = 0
+        self.input_universe = 1
         self.input_port = 6454
         self.input_dmx_address = 1
 
@@ -68,6 +68,8 @@ class IO_Manager():
         self.gamma_correction = list(OutputCorrection.available_methods().keys())[0] #available gamma correction methods for the output, can be set to a specific method or None to disable gamma correction
         self.flip_top_bottom = False
         self.flip_left_right = False
+
+        self._last_output_ts = time.time()
 
         self.settings_menu = {
             "Display": [
@@ -394,7 +396,15 @@ class IO_Manager():
                 # wait until the next frame is due
                 time.sleep(max((1 / self.framerate) - (time.time() - self.ts_last_frame) - 0.001, 0.001))
             
+            step_start = time.time()
             self.step()
+            step_end = time.time()
+            step_time = step_end - step_start
+            self._fps = 1 / (time.time() - self._last_output_ts) if self._last_output_ts else float('inf')
+            self._last_output_ts = time.time()
+            if int(step_end) % 30 == 0: #log every 10 seconds
+                logger.debug(f"Step time: {step_time:.3f} seconds, FPS: {self._fps:.2f}")
+            # logger.debug(f"Frame time: {step_end - step_start:.3f} seconds")
         print("IO loop stopped.")
 
     def get_channels(self):
@@ -591,6 +601,7 @@ class IO_Manager():
                 self.artnet_sender.set(dmx_values, universe=self.segment_to_universe[y])
 
         self.artnet_sender.show()
+
 
     def update_DMX_channels(self, channels):
         self.dmx_channel_inputs.update_sliders(channels)

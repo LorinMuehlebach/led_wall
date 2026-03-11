@@ -1,0 +1,7 @@
+{
+    "universe": 1.0,
+    "start_channel": 1,
+    "fps": 30,
+    "multicast": true,
+    "bind_ip": ""
+}
