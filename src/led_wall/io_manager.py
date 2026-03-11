@@ -403,7 +403,7 @@ class IO_Manager():
             self._fps = 1 / (time.time() - self._last_output_ts) if self._last_output_ts else float('inf')
             self._last_output_ts = time.time()
             if int(step_end) % 30 == 0: #log every 10 seconds
-                logger.debug(f"Step time: {step_time:.3f} seconds, FPS: {self._fps:.2f}")
+                logger.info(f"Step time: {step_time:.3f} seconds, FPS: {self._fps:.2f}")
             # logger.debug(f"Frame time: {step_end - step_start:.3f} seconds")
         print("IO loop stopped.")
 
