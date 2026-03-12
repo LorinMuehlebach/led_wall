@@ -9,12 +9,20 @@ receiver.start()  # start the receiving thread
 @receiver.listen_on('universe', universe=1)  # listens on universe 1
 def callback(packet:sacn.DataPacket):  # packet type: sacn.DataPacket
     if packet.dmxStartCode == 0x00:  # ignore non-DMX-data packets
-        print(packet.dmxData)  # print the received DMX data
+        current_time = time.time()
+        if hasattr(callback, 'last_time'):
+            delta = current_time - callback.last_time
+            if delta > 0:
+                fps = 1 / delta
+                print(f"FPS: {fps:.2f}")
+        callback.last_time = current_time
+
+        #print(packet.dmxData)  # print the received DMX data
 
 # optional: if multicast is desired, join with the universe number as parameter
 receiver.join_multicast(1)
 
-time.sleep(10)  # receive for 10 seconds
+time.sleep(60)  # receive for 10 seconds
 
 # optional: if multicast was previously joined
 receiver.leave_multicast(1)

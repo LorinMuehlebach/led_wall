@@ -1,3 +1,4 @@
+import sys
 import time
 import numpy as np
 import cv2
@@ -9,6 +10,15 @@ import asyncio
 #from pyartnet import ArtNetNode
 from led_wall.MultiUniverseArtnet import StupidArtnet
 from stupidArtnet import StupidArtnetServer
+
+# On Windows, request 1 ms timer resolution so time.sleep() only overshoots
+# by ~1-2 ms instead of ~15.6 ms.
+if sys.platform == "win32":
+    try:
+        import ctypes
+        ctypes.windll.winmm.timeBeginPeriod(1)  # type: ignore[attr-defined]
+    except Exception:
+        pass
 
 
 from nicegui import ui
@@ -49,6 +59,7 @@ class IO_Manager():
         self.input_universe = 1
         self.input_port = 6454
         self.input_dmx_address = 1
+        self.input_filter = 0.5 # s full change from 0 - 255
 
         
         self.pixel_channels = 4
@@ -120,7 +131,8 @@ class IO_Manager():
                     settings_id='framerate',
                     on_change=lambda e, self=self: setattr(self, 'framerate', int(e.value) if e.value is not None else self.framerate),
                     precision=0,
-                    manager=self.settings_manager
+                    manager=self.settings_manager,
+                    min=10, max=60 #limit framerate to prevent issues with StupidArtnet at high framerates
                 ),
                 SettingsElement(
                     label='RGBW LEDs',
@@ -160,7 +172,7 @@ class IO_Manager():
                     input=ui.number,
                     settings_id='input_universe',
                     default_value=self.input_universe,
-                    on_change=lambda e, self=self: self.input_artnet_init(universum = int(e.value) if e.value is not None else self.input_universe),
+                    on_change=lambda e, self=self: self.input_init(universum = int(e.value) if e.value is not None else self.input_universe),
                     precision=0,
                     manager=self.settings_manager
                 ),
@@ -170,6 +182,15 @@ class IO_Manager():
                     settings_id='input_port',
                     default_value=self.input_port,
                     on_change=lambda e, self=self: self.input_artnet_init(port = int(e.value) if e.value is not None else self.input_port),
+                    precision=0,
+                    manager=self.settings_manager
+                ),
+                SettingsElement(
+                    label='Filter (s full change)',
+                    input=ui.number,
+                    settings_id='input_filter',
+                    default_value=self.input_filter,
+                    on_change=lambda e, self=self: self.input_init(filter = int(e.value) if e.value is not None else self.input_filter),
                     precision=0,
                     manager=self.settings_manager
                 ),
@@ -234,7 +255,7 @@ class IO_Manager():
                     manager=self.settings_manager
                 ),
                 SettingsElement(
-                    label='device universes',
+                    label='consecutive universes',
                     input=ui.number,
                     settings_id='consecutive_universes',
                     default_value=self.consecutive_universes,
@@ -386,33 +407,44 @@ class IO_Manager():
 
         self.update_artnet_output()
 
+    SLEEP_THRESHOLD: float = 0.005  # seconds – spin-wait margin
+
     def run_loop(self):
         """
-        loop which runs at the defined framerate
+        loop which runs at the defined framerate.
+        Uses perf_counter for sub-ms timing accuracy on Windows.
         """
+        clock = time.perf_counter
         print("IO loop started.")
         while self.run:
-            while time.time() - self.ts_last_frame < 1 / self.framerate:
-                # wait until the next frame is due
-                time.sleep(max((1 / self.framerate) - (time.time() - self.ts_last_frame) - 0.001, 0.001))
-            
-            # step_start = time.time()
-            # self.step()
-            # step_end = time.time()
-            # step_time = step_end - step_start
-            # self._fps = 1 / (time.time() - self._last_output_ts) if self._last_output_ts else float('inf')
-            # self._last_output_ts = time.time()
-            # if int(step_end) % 30 == 0 and step_end: #log every 10 seconds
-            #     print(f"Step time: {step_time:.3f} seconds, FPS: {self._fps:.2f}")
-            # logger.debug(f"Frame time: {step_end - step_start:.3f} seconds")
+            tick_start: float = clock()
+            frame_period: float = 1.0 / max(min(self.framerate,60), 1) # Avoid division by zero
+
+            self.step()
+
+            # Wait for the remainder of the frame period.
+            # Sleep the coarse part to release the CPU, then spin-wait
+            # the tail using perf_counter for sub-ms accuracy.
+            deadline: float = tick_start + frame_period
+            remaining: float = deadline - clock()
+            if remaining > self.SLEEP_THRESHOLD:
+                time.sleep(remaining - self.SLEEP_THRESHOLD)
+            while clock() < deadline:
+                pass
         print("IO loop stopped.")
 
     def get_channels(self):
         return self.dmx_channel_inputs.get_channels()
     
-    def input_init(self, dmx_address:int=None):
+    def input_init(self, dmx_address:int=None, universum:int=None, port:int=None, filter:int=None):
         if dmx_address is not None:
             self.input_dmx_address = dmx_address
+        if universum is not None:
+            self.input_universe = universum
+        if port is not None:
+            self.input_port = port
+        if filter is not None:
+            self.input_filter = filter
 
         if self.input_source == "artnet":
             self.input_artnet_init()
@@ -607,7 +639,6 @@ class IO_Manager():
                 self.artnet_sender.set(dmx_values, universe=self.segment_to_universe[y])
 
         self.artnet_sender.show()
-
 
     def update_DMX_channels(self, channels):
         self.dmx_channel_inputs.update_sliders(channels)

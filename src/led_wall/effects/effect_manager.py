@@ -37,6 +37,10 @@ class EffectManager():
 
         self.ui_select = []
         self.preview_image = None
+        self._fps_label: ui.label | None = None
+        self._fps_frame_count: int = 0
+        self._fps_last_report: float = 0.0
+        self._fps_value: float = 0.0
 
         self.active_effect = 0
 
@@ -241,7 +245,18 @@ class EffectManager():
 
         self.effects[self.active_effect].update_inputs(channels)
         output = self.effects[self.active_effect].run_raw(channels, last_output)
-        
+
+        # Update FPS counter
+        self._fps_frame_count += 1
+        now = time.perf_counter()
+        dt = now - self._fps_last_report
+        if dt >= 1.0:
+            self._fps_value = self._fps_frame_count / dt
+            self._fps_frame_count = 0
+            self._fps_last_report = now
+            if self._fps_label is not None:
+                self._fps_label.set_text(f'{self._fps_value:.1f} FPS')
+
         if self.IO_manager.preview_in_window:
             # If a preview image is set, update it with the new frame
             preview = create_preview_frame(
@@ -256,7 +271,7 @@ class EffectManager():
 
         return output
 
-    def init_preview(self,preview_image: ui.interactive_image) -> callable:
+    def init_preview(self, preview_image: ui.interactive_image, fps_label: ui.label | None = None) -> None:
         """
         initializes the preview window for the led wall.
         """
@@ -264,6 +279,9 @@ class EffectManager():
         aspect_ratio = self.dimension[0] / self.dimension[1]
         self.preview_width = int(self.preview_height * aspect_ratio)
         self.preview_image = preview_image
+        self._fps_label = fps_label
+        self._fps_last_report = time.perf_counter()
+        self._fps_frame_count = 0
 
     def setup_preview(self) -> None:
         """
