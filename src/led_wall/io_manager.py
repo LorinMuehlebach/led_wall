@@ -1,15 +1,11 @@
 import sys
 import time
 import numpy as np
-import cv2
-from functools import partial
-from threading import Thread, current_thread, active_count
+from threading import Thread, current_thread
 from logging import getLogger
 
-import asyncio
-#from pyartnet import ArtNetNode
 from led_wall.MultiUniverseArtnet import StupidArtnet
-from stupidArtnet import StupidArtnetServer
+from led_wall.sacn_input import SACNInput
 
 # On Windows, request 1 ms timer resolution so time.sleep() only overshoots
 # by ~1-2 ms instead of ~15.6 ms.
@@ -24,7 +20,6 @@ if sys.platform == "win32":
 from nicegui import ui
 
 from led_wall.ui.settings_manager import SettingsElement, SettingsManager
-from led_wall.utils import Color
 from led_wall.ui.dmx_channels import DMX_channels_Input
 from led_wall.ui.preview_window import preview_setup, create_preview_frame, OutputCorrection
 
@@ -52,14 +47,12 @@ class IO_Manager():
         """
         self.settings_manager = SettingsManager(parent=settings_manager, name="io_settings")
         self.dmx_channel_inputs = DMX_channels_Input(14)
-        self.input_source =  "sacn" #can be "artnet", "dmx" or "none"
 
-        #artnet input
-        self.artnet_server = None  # ArtNetServer instance for input
+        # sACN input
+        self.sacn_input: SACNInput | None = None
         self.input_universe = 1
-        self.input_port = 6454
         self.input_dmx_address = 1
-        self.input_filter = 0.5 # s full change from 0 - 255
+        self.input_filter = 0.5  # seconds for a full 0-255 change
 
         
         self.pixel_channels = 4
@@ -79,8 +72,6 @@ class IO_Manager():
         self.gamma_correction = list(OutputCorrection.available_methods().keys())[0] #available gamma correction methods for the output, can be set to a specific method or None to disable gamma correction
         self.flip_top_bottom = False
         self.flip_left_right = False
-
-        self._last_output_ts = time.time()
 
         self.settings_menu = {
             "Display": [
@@ -150,15 +141,6 @@ class IO_Manager():
             ],
             "Eingang": [
                 SettingsElement(
-                    label='Quelle',
-                    input=ui.select,
-                    settings_id='input_source',
-                    default_value=self.input_source,
-                    on_change=lambda e, self=self: setattr(self, 'input_source', e.value) or self.input_init(), #reinitialize input on change
-                    options=["artnet","sacn","dmx","none"],
-                    manager=self.settings_manager
-                ),
-                SettingsElement(
                     label='DMX Adresse',
                     input=ui.number,
                     settings_id='input_dmx_address',
@@ -168,20 +150,11 @@ class IO_Manager():
                     manager=self.settings_manager
                 ),
                 SettingsElement(
-                    label='Universum (nur ArtNet)',
+                    label='Universum',
                     input=ui.number,
                     settings_id='input_universe',
                     default_value=self.input_universe,
-                    on_change=lambda e, self=self: self.input_init(universum = int(e.value) if e.value is not None else self.input_universe),
-                    precision=0,
-                    manager=self.settings_manager
-                ),
-                SettingsElement(
-                    label='Port (nur ArtNet)',
-                    input=ui.number,
-                    settings_id='input_port',
-                    default_value=self.input_port,
-                    on_change=lambda e, self=self: self.input_artnet_init(port = int(e.value) if e.value is not None else self.input_port),
+                    on_change=lambda e, self=self: self.input_init(universum=int(e.value) if e.value is not None else self.input_universe),
                     precision=0,
                     manager=self.settings_manager
                 ),
@@ -190,8 +163,8 @@ class IO_Manager():
                     input=ui.number,
                     settings_id='input_filter',
                     default_value=self.input_filter,
-                    on_change=lambda e, self=self: self.input_init(filter = int(e.value) if e.value is not None else self.input_filter),
-                    precision=0,
+                    on_change=lambda e, self=self: self.input_init(filter=float(e.value) if e.value is not None else self.input_filter),
+                    precision=2,
                     manager=self.settings_manager
                 ),
             ],
@@ -303,7 +276,7 @@ class IO_Manager():
 
         #start input
         self.is_initialized = True
-        self.input_init()
+        self._init_sacn_input()
         self.output_artnet_init()
 
     @ui.refreshable
@@ -353,19 +326,17 @@ class IO_Manager():
 
     def stop_loop(self) -> None:
         self.run = False
-        if self.artnet_server:
-            self.artnet_server.close()
-            del self.artnet_server
-            self.artnet_server = None
-        
+
+        # Stop sACN input
+        if self.sacn_input is not None:
+            self.sacn_input.stop()
+            self.sacn_input = None
+
         if hasattr(self, 'artnet_sender'):
             self.artnet_sender.stop()
             del self.artnet_sender
 
-        #TODO switch between multiple input sources and stop the corresponding input when switching
-        self.input_sacn_stop()
-
-        if self.run_thread.is_alive() and self.run_thread is not current_thread():
+        if self.run_thread is not None and self.run_thread.is_alive() and self.run_thread is not current_thread():
             try:
                 self.run_thread.join(timeout=2.0)
                 if self.run_thread.is_alive():
@@ -378,7 +349,7 @@ class IO_Manager():
         Stops the loop thread without tearing down ArtNet resources.
         """
         self.run = False
-        if self.run_thread.is_alive() and self.run_thread is not current_thread():
+        if self.run_thread is not None and self.run_thread.is_alive() and self.run_thread is not current_thread():
             try:
                 self.run_thread.join(timeout=2.0)
             except Exception as e:
@@ -395,13 +366,19 @@ class IO_Manager():
     def step(self):
         """
         Single step of the loop.
+        Calls sACN smoothing, updates sliders on change, renders the frame,
+        and sends artnet output.
         """
         self.ts_last_frame = time.time()
 
+        # Run one smoothing tick on the sACN input
+        if self.sacn_input is not None:
+            values, changed = self.sacn_input.smoothing_step()
+            if changed:
+                self.dmx_channel_inputs.update_sliders(values, external=True)
+
         channels = self.dmx_channel_inputs.get_channels()
         frame = self.create_frame(channels, last_output=self.output_buffer) if self.create_frame else self.output_buffer
-
-        #TODO add fade between frames
 
         self.output_buffer = frame
 
@@ -417,109 +394,65 @@ class IO_Manager():
         clock = time.perf_counter
         print("IO loop started.")
         while self.run:
-            tick_start: float = clock()
-            frame_period: float = 1.0 / max(min(self.framerate,60), 1) # Avoid division by zero
+            try:
+                tick_start: float = clock()
+                frame_period: float = 1.0 / max(min(self.framerate,60), 1) # Avoid division by zero
 
-            self.step()
+                self.step()
 
-            # Wait for the remainder of the frame period.
-            # Sleep the coarse part to release the CPU, then spin-wait
-            # the tail using perf_counter for sub-ms accuracy.
-            deadline: float = tick_start + frame_period
-            remaining: float = deadline - clock()
-            if remaining > self.SLEEP_THRESHOLD:
-                time.sleep(remaining - self.SLEEP_THRESHOLD)
-            while clock() < deadline:
-                pass
+                # Wait for the remainder of the frame period.
+                # Sleep the coarse part to release the CPU, then spin-wait
+                # the tail using perf_counter for sub-ms accuracy.
+                deadline: float = tick_start + frame_period
+                remaining: float = deadline - clock()
+                if remaining > self.SLEEP_THRESHOLD:
+                    time.sleep(remaining - self.SLEEP_THRESHOLD)
+                while clock() < deadline:
+                    pass
+            except Exception as e:
+                logger.error(f"Error in IO loop: {e}", exc_info=True)
+                time.sleep(0.5)  # Sleep briefly to avoid tight error loop
         print("IO loop stopped.")
 
     def get_channels(self):
         return self.dmx_channel_inputs.get_channels()
-    
-    def input_init(self, dmx_address:int=None, universum:int=None, port:int=None, filter:int=None):
+
+    def input_init(self, dmx_address: int | None = None, universum: int | None = None, filter: float | None = None) -> None:
+        """(Re-)initialize the sACN input with updated parameters."""
         if dmx_address is not None:
             self.input_dmx_address = dmx_address
         if universum is not None:
             self.input_universe = universum
-        if port is not None:
-            self.input_port = port
         if filter is not None:
             self.input_filter = filter
 
-        if self.input_source == "artnet":
-            self.input_artnet_init()
-        elif self.input_source == "sacn":
-            self.input_sacn_init()
-        elif self.input_source == "dmx":
-            pass #nothing to initialize for DMX input as we read the channels directly from the sliders
+        self._init_sacn_input()
 
-    def input_sacn_init(self, universum:int=None, port:int=None):
-        if universum is not None:
-            self.input_universe = universum
-        if port is not None:
-            self.input_port = port
-
+    def _init_sacn_input(self) -> None:
+        """Create (or recreate) the SACNInput wrapper."""
         if not getattr(self, 'is_initialized', False):
             return
 
-        import sacn
-        # provide an IP-Address to bind to if you want to receive multicast packets from a specific interface
-        self.receiver = sacn.sACNreceiver()
-        self.receiver.start()  # start the receiving thread
+        # Tear down previous instance
+        if self.sacn_input is not None:
+            self.sacn_input.stop()
 
-        #TODO input fade?
-        
-        # define a callback function
-        @self.receiver.listen_on('universe', universe=self.input_universe)  # listens on universe 1
-        def callback(packet:sacn.DataPacket):  # packet type: sacn.DataPacket
-            if packet.dmxStartCode == 0x00:  # ignore non-DMX-data packets
-                start = self.input_dmx_address - 1
-                count = self.dmx_channel_inputs.n_channels
-                
-                dt = time.time() - self._last_output_ts
-                input_fps = 1 / dt if dt else float('inf')
-                self._last_output_ts = time.time()
-                #if int(time.time()) % 30 == 0: #log every 30 seconds
-                print(f"Received sACN frame: Universe={packet.universe}, DMX Channels={len(packet.dmxData)}, Input FPS={input_fps:.2f}")
-                
-                if len(packet.dmxData) >= start + count:
-                    values = list(packet.dmxData[start : start + count])
-                    self.dmx_channel_inputs.update_sliders(values, external=True)
-
-        # optional: if multicast is desired, join with the universe number as parameter
-        self.receiver.join_multicast(self.input_universe)
-
-    def input_sacn_stop(self):
-        # optional: if multicast was previously joined
-        self.receiver.leave_multicast(self.input_universe)
-        self.receiver.stop()
-
-    def input_artnet_init(self,universum:int=None, port:int=None):
-        if universum is not None:
-            self.input_universe = universum
-        if port is not None:
-            self.input_port = port
-        
-        if not getattr(self, 'is_initialized', False):
-            return
-
-        if self.artnet_server:
-            self.artnet_server.close()
-            del self.artnet_server
-        
-        self.artnet_server = StupidArtnetServer(self.input_port)
-        self.listener_id = self.artnet_server.register_listener(
+        self.sacn_input = SACNInput(
             universe=self.input_universe,
-            callback_function=self.on_artnet_frame
+            start_channel=self.input_dmx_address,
+            n_channels=self.dmx_channel_inputs.n_channels,
+            callback=lambda values: None,  # driven externally via smoothing_step()
+            framerate=self.framerate,
+            time_full_change=self.input_filter,
+            multicast=True,
+            use_internal_loop=False,
         )
-
-    def on_artnet_frame(self, data):
-        start = self.input_dmx_address - 1
-        count = self.dmx_channel_inputs.n_channels
-        
-        if len(data) >= start + count:
-            values = list(data[start : start + count])
-            self.dmx_channel_inputs.update_sliders(values, external=True)
+        self.sacn_input.start()
+        logger.info(
+            "sACN input initialized: universe=%d, start=%d, channels=%d, filter=%.2fs",
+            self.input_universe, self.input_dmx_address,
+            self.dmx_channel_inputs.n_channels, self.input_filter,
+        )
 
     def output_artnet_init(self, ip:str=None):
         if ip is not None:
