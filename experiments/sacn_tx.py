@@ -31,6 +31,7 @@ def main():
             if 1 <= DMX_CHANNEL <= 512:
                 dmx_data[DMX_CHANNEL - 1] = val
             
+            dmx_data[DMX_CHANNEL] = 255
             # Update the universe data
             sender[UNIVERSE].dmx_data = tuple(dmx_data)
             
