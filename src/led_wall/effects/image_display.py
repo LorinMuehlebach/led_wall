@@ -12,9 +12,6 @@ class ImageDisplay(BaseEffect):
         self.media_manager = MediaManager(settings_manager, resolution=resolution, dimensions=dimensions)
         super().__init__(resolution, dimensions, rgbw, settings_manager)
     
-    def setup_settings(self) -> None:
-        # No standard settings elements needed, MediaManager handles UI
-        self.settings_elements = []
 
     def ui_settings(self):
         # Create the UI for the media manager

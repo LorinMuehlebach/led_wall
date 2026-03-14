@@ -77,12 +77,12 @@ class SettingsManager:
             #save the settings to a file
             self.save_with_timeout()
         
-    def get_setting(self, key: str) -> int | str | dict:
+    def get_setting(self, key: str, default=None) -> int | str | dict:
         """
         Returns the value of the setting with the given key.
-        If the key does not exist, it returns None.
+        If the key does not exist, it returns the provided default value.
         """
-        return self.settings.get(key, None)
+        return self.settings.get(key, default)
 
     def update_setting(self, setting_id: str, value) -> None:
         """
@@ -92,6 +92,9 @@ class SettingsManager:
         if isinstance(value, ValueChangeEventArguments):
             value = value.value
         
+        if setting_id in self.settings and self.get_setting(setting_id) == value:
+            return # No change, do nothing
+
         # Try to find the corresponding SettingsElement
         element = next((e for e in self.settings_elements if e.settings_id == setting_id), None)
         if element:
@@ -193,5 +196,32 @@ class SettingsElement():
         """
         self.on_change(e) if self.on_change else None #execute the custom on_change callback if provided
         self.manager.settings_change(self, e.value) if self.manager else None #save changes
-        
-        
+
+
+class HiddenSettingsElement(SettingsElement):
+    """A settings element that stores a value (list or dict) without any UI."""
+
+    def __init__(self,
+                 default_value: list | dict,
+                 manager: SettingsManager | None = None,
+                 on_change=None,
+                 **kwargs,
+                ) -> None:
+        # Use a dummy label and input; they won't be rendered
+        super().__init__(
+            label=kwargs.pop('settings_id', 'hidden'),
+            input=None,
+            default_value=default_value,
+            manager=manager,
+            on_change=on_change,
+            **kwargs,
+        )
+
+    def create_ui(self) -> None:
+        """No UI to create for a hidden element."""
+        pass
+
+    def set_value(self, value: list | dict) -> None:
+        """Update the stored value and trigger save."""
+        self.value = value
+        self.manager.settings_change(self, value) if self.manager else None

@@ -23,6 +23,7 @@ class ColorWheel(Element, component='color_wheel.vue'):
         throttle = 0.05
         self.value = value if value else '#000000'
         self._on_change = on_change
+        self._dragging = False
 
         # Build options dict to pass to the Vue component / jQuery plugin
         options: dict = {
@@ -41,6 +42,9 @@ class ColorWheel(Element, component='color_wheel.vue'):
         def _update_value(color: str) -> None:
             if self.value != color:
                 self.value = color
+
+                if not color.startswith('#'):
+                    color = '#' + color
                 if self._on_change:
                     self._on_change(color)
 
@@ -50,12 +54,22 @@ class ColorWheel(Element, component='color_wheel.vue'):
         def handle_colorchange(e):
             _update_value(e.args)
 
+        def handle_dragstart(e):
+            self._dragging = True
+
+        def handle_dragend(e):
+            self._dragging = False
+            _update_value(e.args)
+
         self.on('change', handle_change)
         self.on('colorchange', handle_colorchange, throttle=throttle)
+        self.on('dragstart', handle_dragstart)
+        self.on('dragend', handle_dragend)
 
     def set_color(self, color: str) -> None:
         self.value = color
-        self.run_method('setColor', color)
+        if not self._dragging:
+            self.run_method('setColor', color)
 
     # def set_props(self, key,value) -> None:
     #     self.run_method('setAttr', key)

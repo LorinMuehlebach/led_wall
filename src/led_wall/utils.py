@@ -77,9 +77,10 @@ class Color:
             self.MODE = 'rgbw'
             self.value[3] = int(hex[6:8], 16)
 
-    def as_hex(self) -> str:
+    def as_hex(self, mode=None) -> str:
         """Returns the color as a hex string."""
-        if self.MODE == 'rgbw':
+        mode = mode or self.MODE
+        if mode == 'rgbw':
             return f'#{self.value[0]:02x}{self.value[1]:02x}{self.value[2]:02x}{self.value[3]:02x}'
         return f'#{self.value[0]:02x}{self.value[1]:02x}{self.value[2]:02x}'
 

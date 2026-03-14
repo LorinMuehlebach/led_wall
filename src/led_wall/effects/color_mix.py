@@ -238,7 +238,9 @@ class ColorMix(BaseEffect):
             self.settings_manager.update_setting('noise_pattern_type', 1) # Reset to a valid noise pattern
             self.settings_manager.update_setting('mix_mode', 'Image')
 
-        self.settings_elements = [
+        super().setup_settings()
+
+        self.settings_elements += [
             SettingsElement(
                 label='Mix Mode',
                 input=ui.select,

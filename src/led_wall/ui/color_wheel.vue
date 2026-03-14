@@ -24,6 +24,15 @@ export default {
         let hex = $(this).wheelColorPicker('getValue');
         vue_element.$emit("change", hex);
     });
+
+    $(input).on('sliderdown', function() {
+        vue_element.$emit("dragstart");
+    });
+
+    $(input).on('sliderup', function() {
+        let hex = $(this).wheelColorPicker('getValue');
+        vue_element.$emit("dragend", hex);
+    });
   },
   props: {
     options: Object,

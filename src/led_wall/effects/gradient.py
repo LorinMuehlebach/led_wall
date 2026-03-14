@@ -46,9 +46,9 @@ class Gradient(BaseEffect):
         start = self.inputs['change_start'].value / 255.0
         # Nonlinear scaling: x^2 gives more resolution at the lower end (near 0)
         strength_raw = self.inputs['change_strength'].value / 255.0
-        strength = strength_raw ** 2
+        strength = strength_raw ** 4
         # Convert DMX direction (0-255) to angle (0 to 2*PI)
-        angle = (self.inputs['direction'].value / 255.0) * 2 * np.pi
+        angle = (self.inputs['direction'].value / 255.0) * np.pi
         
         # Calculate projection vector based on angle
         dx = np.cos(angle)
@@ -75,9 +75,3 @@ class Gradient(BaseEffect):
         output_array = (c1 * (1.0 - t_3d) + c2 * t_3d).astype(np.uint8)
         
         return output_array
-
-    def setup_settings(self) -> None:
-        """
-        Setup effect specific settings (not used here as all controls are via DMX).
-        """
-        self.settings_elements = []

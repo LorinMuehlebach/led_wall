@@ -3,7 +3,6 @@ import logging
 from nicegui import ui
 
 from led_wall.ui.slider import Slider
-from led_wall.ui.color_picker import ColorPicker
 from led_wall.ui.color_wheel import ColorWheel
 from led_wall.utils import Color
 
@@ -17,6 +16,9 @@ class InputType:
     number_of_channels: int = 1
     ignore_inputs: bool = False  # If True, the input will not be updated from input channels
     on_ui_input = None
+    #save value in settings
+    allow_saving = False
+    save_in_settings = False
 
     def get_channels(self) -> list[int]:
         """
@@ -44,9 +46,10 @@ class Fader(InputType):
     Represents a fader from a single channel.
     """
     def __init__(self, value: int = 0, add_value_label =True) -> None:
-        self.value = value   
+        self.value = value   #not used anymore?
         self.add_value_label = add_value_label
         self.n_channels = 1
+        self.slider = None
 
     def get_channels(self) -> list[int]:
         """Returns the fader value as a list."""
@@ -63,6 +66,8 @@ class Fader(InputType):
             return
         
         self.value = channels[0]
+        if self.slider:
+            self.slider.value = self.value
 
     def ui_input(self, **kwargs) -> ui.element:
         """
@@ -72,6 +77,10 @@ class Fader(InputType):
         add_binding = False #kwargs.pop("add_binding",True)
         
         def handle_change(e):
+            if self.slider.value == self.value: #avoid triggering on_change if the value is the same
+                return
+            
+            self.value = self.slider.value
             self._on_change(e)
             if external_on_change:
                 external_on_change(e)
@@ -81,9 +90,13 @@ class Fader(InputType):
             self.slider = Slider(min=0, max=255, value=0, vertical=True, reverse=True,**kwargs)
             if self.add_value_label:
                 ui.label().bind_text_from(self.slider, 'value')
+
+            if self.allow_saving:
+                self.checkbox = ui.checkbox('save',on_change=lambda e: self._on_change(None))
+                self.checkbox.bind_value(self,'save_in_settings')
         
-        if add_binding:
-            self.slider.bind_value(self, 'value')
+        #if add_binding:
+        #self.slider.bind_value(self, 'value')
 
         return self.slider
 
@@ -107,10 +120,11 @@ class ColorInput(Color,InputType):
 
     def ui_input(self, **kwargs) -> ui.element:
         """Creates a NiceGUI input element for the color."""
-        # if self.MODE == 'rgbw':
-        #     return ui.color_input(value=self.as_hex(), **kwargs)
-        self.color_picker = ColorPicker(value=self.as_hex(),on_pick=lambda e :self._on_change(e.color),enable_white=self.MODE == 'rgbw', **kwargs)
-        self.color_picker.set_color(self.as_hex())
+        self.color_picker = ColorWheel(
+            value=self.as_hex(),
+            inline=True,
+            on_change=lambda color: self._on_change(color),
+        )
         return self.color_picker
 
     def _on_change(self, value: str) -> None:
@@ -139,7 +153,65 @@ class RGBW_Color(ColorInput):
     def __init__(self, *args, **kwargs):
         kwargs["type"] = 'rgbw' #force RGBW mode
         self.n_channels = 4
+        self.slider = None
+        self._value = [0, 0, 0, 0]
         super().__init__(*args, **kwargs)
+
+    def ui_input(self, **kwargs) -> ui.element:
+        """Creates a NiceGUI input element for the color."""
+
+        self.value = self._value
+        with ui.column():
+            with ui.row().classes('items-stretch'):
+                self.color_picker = ColorWheel(
+                    value=self.as_hex(mode='rgb'), #color wheel only supports RGB, we will ignore the white channel here
+                    inline=True,
+                    on_change=lambda color: self._color_changed(color),
+                )
+                self.slider = Fader(value=self._value[3])
+                self.slider.allow_saving = False
+                self.slider.ui_input(on_change=lambda e: self._white_changed(e.value))
+
+            if self.allow_saving:
+                self.checkbox = ui.checkbox('save',on_change=lambda e: self._on_change(None))
+                self.checkbox.bind_value(self,'save_in_settings')
+
+        return self.color_picker
+    
+    def _white_changed(self, value: int) -> None:
+        if isinstance(value,list):
+            value = value[3]
+        if value == self._value[3]:
+            return
+        self._value[3] = value
+        
+        self._on_change(None)
+
+    def _color_changed(self, value: str) -> None:
+        self.value = self._value #update RGB values from current channels to avoid losing the white channel value
+        if value == self.as_hex(mode='rgb'):
+            return
+        self.set_hex(value,type='rgb') #update RGB values
+        self._on_change(None)
+
+    def _on_change(self,e):
+        self.on_ui_input(self.get_channels()) if self.on_ui_input else None
+    
+    def set_channels(self, channels: list[int]) -> None:
+        #super().set_channels(channels)
+        if self.ignore_inputs:
+            return
+        
+        self._value = channels
+        if self.color_picker:
+            self.value = self._value
+            self.color_picker.set_color(self.as_hex(mode='rgb')) #update color picker, ignore white channel
+        if self.slider:
+            self.slider.value = self._value[3]
+
+    def get_channels(self) -> list[int]:
+        """Returns the fader value as a list."""
+        return self._value
 
 class RGBWPicker(ColorInput,InputType):
     """

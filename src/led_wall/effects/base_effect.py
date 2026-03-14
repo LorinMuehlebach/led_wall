@@ -5,7 +5,7 @@ import logging
 
 from nicegui import ui
 
-from led_wall.ui.settings_manager import SettingsManager, SettingsElement
+from led_wall.ui.settings_manager import HiddenSettingsElement, SettingsManager, SettingsElement
 from led_wall.datatypes import RGBW_Color, Fader, InputType
 
 logger = logging.getLogger("utils")
@@ -29,6 +29,7 @@ class BaseEffect:
         self.rgbw:bool = rgbw
         self.on_input_change:callable = None #callback function to update the DMX faders
         self.io_manager = None # Reference to IO_Manager, set by EffectManager
+        self.saved_inputs = settings_manager.get_setting("saved_inputs",{})
 
         self.setup_settings()
 
@@ -55,6 +56,14 @@ class BaseEffect:
         for input_name in self.inputs:
             input = self.inputs[input_name]
             n_channels = input.n_channels
+
+            #if save input for this input is enabled in the settings load the saved value
+            if input.allow_saving and self.saved_inputs and input_name in self.saved_inputs:
+                saved_channels = self.saved_inputs[input_name]
+                if saved_channels is not None:
+                    input.save_in_settings = True #mark the input as saved in the settings to show it in the UI
+                    input.set_channels(saved_channels)
+                    return
             
             input.set_channels(DMX_channels[processed_channel:processed_channel + n_channels])
             processed_channel += n_channels
@@ -64,6 +73,7 @@ class BaseEffect:
         create a settings page for the effect
         """
         self.settings_elements: list[SettingsElement] = []
+
         # self.settings_elements.append(SettingsElement(
         #     label='Convert to RGBW',
         #     input=ui.switch,
@@ -97,8 +107,20 @@ class BaseEffect:
         """
         dmx_channels = []
         for input_name in self.inputs:
+            #save the input values in the settings if enabled, but only if there are channels to save
+            input = self.inputs[input_name]
+            if input.allow_saving:
+                val_dict = self.saved_inputs
+                if not input.save_in_settings and input_name in val_dict:
+                    del val_dict[input_name]
+                else:
+                    val_dict[input_name] = input.get_channels()
+
+                self.settings_manager.update_setting("saved_inputs", val_dict) #save the updated values for this input in the settings manager
+
             dmx_channels += self.inputs[input_name].get_channels()
 
+        #call the callback to update the DMX faders with the new channels
         self.on_input_change(dmx_channels) if self.on_input_change else None
 
     def ui_settings(self) -> None:
@@ -142,6 +164,9 @@ class BaseEffect:
                     element_name = input_element.replace('_', ' ')
                     ui.label(element_name).classes('text-lg font-bold')
                     input_element = self.inputs[input_element]
+                    if idx != 0: #if not master fader, allow saving the value in the settings
+                        input_element.allow_saving = True #allow saving the input values in the settings
+
                     input_element.ui_input() #create the UI element for the input, but don't bind it to the input value yet to avoid triggering the callback when the UI is created
                     input_element.on_ui_input = None #reset callback to avoid triggering it when the UI is created
                     self.ui_inputs.append(input_element)
@@ -153,9 +178,9 @@ class BaseEffect:
             for input in self.ui_inputs:
                 input.on_ui_input = lambda e, self=self: self.ui_change()
 
-                #TODO check if needed
-                if hasattr(input, "slider"): #if the input has a slider element, bind the slider value to the input value to update it when the slider is changed
-                    input.slider.bind_value(input, 'value') #bind the slider value to the input value to update it when the slider is changed
+                # #TODO check if needed
+                # if hasattr(input, "slider"): #if the input has a slider element, bind the slider value to the input value to update it when the slider is changed
+                #     input.slider.bind_value(input, 'value') #bind the slider value to the input value to update it when the slider is changed
 
 
 if __name__ in {"__main__", "__mp_main__"}:

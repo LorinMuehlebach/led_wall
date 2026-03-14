@@ -33,7 +33,7 @@ class SingleColor(BaseEffect):
         """
         create a settings page for the effect
         """
-        self.settings_elements: list[SettingsElement] = []
+        super().setup_settings()
         self.settings_elements.append(SettingsElement(
             label='Convert to RGBW',
             input=ui.switch,
