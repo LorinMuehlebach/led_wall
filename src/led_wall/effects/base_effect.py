@@ -61,6 +61,8 @@ class BaseEffect:
             if input.allow_saving and self.saved_inputs and input_name in self.saved_inputs:
                 saved_channels = self.saved_inputs[input_name]
                 if saved_channels is not None:
+                    if input.__class__ == "RGBW_Color":
+                        pass
                     input.save_in_settings = True #mark the input as saved in the settings to show it in the UI
                     input.set_channels(saved_channels)
                     return
@@ -111,11 +113,13 @@ class BaseEffect:
             input = self.inputs[input_name]
             if input.allow_saving:
                 val_dict = self.saved_inputs
-                if not input.save_in_settings and input_name in val_dict:
-                    del val_dict[input_name]
+                if not input.save_in_settings:
+                    if input_name in val_dict:
+                        del val_dict[input_name]
                 else:
                     val_dict[input_name] = input.get_channels()
 
+                self.saved_inputs = val_dict #update the saved inputs with the new values for this input
                 self.settings_manager.update_setting("saved_inputs", val_dict) #save the updated values for this input in the settings manager
 
             dmx_channels += self.inputs[input_name].get_channels()
