@@ -10,6 +10,7 @@ class ColorWheel(Element, component='color_wheel.vue'):
     
     def __init__(self, value: Optional[str] = None, inline: bool = False,
                  auto_resize: bool = True, sliders: str = "wv",
+                 size: int = 120,
                  on_change: Optional[Callable[[str], None]] = None) -> None:
         super().__init__()
 
@@ -33,9 +34,11 @@ class ColorWheel(Element, component='color_wheel.vue'):
         }
         if inline:
             options['layout'] = 'block'
+            options['autoResize'] = False
             options['cssClass'] = 'color-block'
 
         self._props['options'] = options
+        self._props['widget_size'] = size
 
         self.set_color(self.value)
 

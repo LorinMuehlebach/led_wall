@@ -6,7 +6,7 @@ import base64
 import time
 from nicegui import ui
 from led_wall.effects.base_effect import BaseEffect
-from led_wall.datatypes import RGBW_Color, Fader
+from led_wall.ui.show_inputs import RGBW_Color, Fader
 from led_wall.ui.settings_manager import SettingsElement
 from led_wall.ui.media_manager import MediaManager
 #from led_wall.ui.video_manager import VideoManager

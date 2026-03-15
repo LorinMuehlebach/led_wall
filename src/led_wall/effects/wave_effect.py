@@ -2,7 +2,7 @@ import numpy as np
 import time
 import math
 from led_wall.effects.base_effect import BaseEffect
-from led_wall.datatypes import Fader, RGBW_Color
+from led_wall.ui.show_inputs import Fader, RGBW_Color
 from nicegui import ui
 from led_wall.ui.settings_manager import SettingsManager, SettingsElement
 

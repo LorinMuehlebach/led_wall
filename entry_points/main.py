@@ -74,7 +74,7 @@ if (not DEV or __name__ != "__main__") and multiprocessing.current_process().nam
             with ui.row().classes('w-full flex flex-wrap gap-4'):
                 with ui.element("div").classes('w-full md:w-1/4 min-w-[200px]'):
                     ui.label("Vorschau").classes('text-2xl font-bold mb-4')
-                    with ui.element('div').classes('relative w-full max-w-400'):
+                    with ui.element('div').classes('relative w-full max-w-300'):
                         preview_image = ui.interactive_image().classes('w-full')
                         fps_label = ui.label('-- FPS').classes(
                             'absolute top-0 left-0 text-xs text-white bg-black/60 px-1 rounded-br z-10'

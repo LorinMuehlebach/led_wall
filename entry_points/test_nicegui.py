@@ -4,7 +4,8 @@ from nicegui import ui
 
 from led_wall.ui.slider import Slider
 from led_wall.ui.color_picker import ColorPicker
-from led_wall.datatypes import Color, Fader
+from led_wall.utils import Color
+from led_wall.ui.show_inputs import Fader
 
 
 # from led_wall.ui.preview_window import preview_setup

@@ -9,7 +9,7 @@ from nicegui import ui
 from led_wall.effects.base_effect import BaseEffect
 from led_wall.io_manager import IO_Manager
 from led_wall.ui.preview_window import preview_setup, create_preview_frame
-from led_wall.datatypes import Color
+from led_wall.utils import Color
 from led_wall.ui.dmx_channels import DMX_channels_Input
 from led_wall.ui.settings_manager import SettingsManager, SettingsElement
 import led_wall.effects as effects_class
@@ -119,7 +119,7 @@ class EffectManager():
                             
                             
                             ui.button('Einstellungen', on_click=open_settings)
-                        with ui.element("div").classes('flex-grow'):
+                        with ui.element("div").classes('flex-grow').style('zoom: 0.8;'):
                             self.effects[tab_idx].ui_show(self.IO_manager.get_channels())        
 
     @ui.refreshable
@@ -128,7 +128,8 @@ class EffectManager():
 
     @ui.refreshable
     def effect_show_ui(self):
-        self.effects[self.active_effect].ui_show(self.IO_manager.get_channels())
+        with ui.element('div').style('zoom: 0.8;'):
+            self.effects[self.active_effect].ui_show(self.IO_manager.get_channels())
 
     def on_tab_change(self, event):
         """
@@ -171,7 +172,7 @@ class EffectManager():
         channels = self.IO_manager.get_channels()
         self.effects[self.active_effect].update_inputs(channels)
         self.effects[self.active_effect].start()
-        self.effects[self.active_effect].on_input_change = self.IO_manager.update_DMX_channels
+        self.effects[self.active_effect].on_input_change = self.update_channels_from_show_ui
 
         # Sync UI tabs if they exist
         if hasattr(self, 'tabs') and self.tabs and hasattr(self, 'all_tabs'):
@@ -185,6 +186,12 @@ class EffectManager():
         # Refresh dependent UIs
         self.effect_setting_ui.refresh()
         self.effect_show_ui.refresh()
+
+    def update_channels_from_show_ui(self, channels):
+        get_selected_effect_value = self.IO_manager.get_channels()[5]  # Assuming channel 5 is used for effect selection
+        channels[5] = get_selected_effect_value  # Ensure the effect selection channel is not overridden by the show UI
+        self.IO_manager.update_DMX_channels(channels)
+
 
     def on_effect_selected(self, event, index):
         """

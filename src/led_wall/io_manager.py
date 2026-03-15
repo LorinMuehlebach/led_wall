@@ -1,4 +1,3 @@
-import sys
 import time
 import numpy as np
 from threading import Thread, current_thread
@@ -6,15 +5,7 @@ from logging import getLogger
 
 from led_wall.MultiUniverseArtnet import StupidArtnet
 from led_wall.sacn_input import SACNInput
-
-# On Windows, request 1 ms timer resolution so time.sleep() only overshoots
-# by ~1-2 ms instead of ~15.6 ms.
-if sys.platform == "win32":
-    try:
-        import ctypes
-        ctypes.windll.winmm.timeBeginPeriod(1)  # type: ignore[attr-defined]
-    except Exception:
-        pass
+from led_wall.win_utils import HighResolutionTimer
 
 
 from nicegui import ui
@@ -31,7 +22,7 @@ class IO_Manager():
 
     """
     output_buffer: np.ndarray = None
-
+    SLEEP_THRESHOLD: float = 0.005  # seconds – spin-wait margin
 
     def __init__(self,settings_manager:SettingsManager,framerate:int=50,preview_in_window:bool=False) -> None:
         """
@@ -384,8 +375,6 @@ class IO_Manager():
 
         self.update_artnet_output()
 
-    SLEEP_THRESHOLD: float = 0.005  # seconds – spin-wait margin
-
     def run_loop(self):
         """
         loop which runs at the defined framerate.
@@ -393,25 +382,50 @@ class IO_Manager():
         """
         clock = time.perf_counter
         print("IO loop started.")
-        while self.run:
-            try:
-                tick_start: float = clock()
-                frame_period: float = 1.0 / max(min(self.framerate,60), 1) # Avoid division by zero
+        last_log_time: float = clock()
+        frame_count: int = 0
+        actual_period_sum: float = 0.0
+        last_tick: float = clock()
+        with HighResolutionTimer() as hrt:
+            while self.run:
+                try:
+                    tick_start: float = clock()
+                    frame_period: float = 1.0 / max(min(self.framerate,60), 1) # Avoid division by zero
 
-                self.step()
+                    step_start: float = clock()
+                    self.step()
+                    step_end: float = clock()
+                    step_duration: float = step_end - step_start
 
-                # Wait for the remainder of the frame period.
-                # Sleep the coarse part to release the CPU, then spin-wait
-                # the tail using perf_counter for sub-ms accuracy.
-                deadline: float = tick_start + frame_period
-                remaining: float = deadline - clock()
-                if remaining > self.SLEEP_THRESHOLD:
-                    time.sleep(remaining - self.SLEEP_THRESHOLD)
-                while clock() < deadline:
-                    pass
-            except Exception as e:
-                logger.error(f"Error in IO loop: {e}", exc_info=True)
-                time.sleep(0.5)  # Sleep briefly to avoid tight error loop
+                    # Wait for the remainder of the frame period.
+                    # Sleep the coarse part to release the CPU, then spin-wait
+                    # the tail using perf_counter for sub-ms accuracy.
+                    deadline: float = tick_start + frame_period
+                    remaining: float = deadline - clock()
+                    if remaining > self.SLEEP_THRESHOLD:
+                        time.sleep(remaining - self.SLEEP_THRESHOLD)
+                    while clock() < deadline:
+                        pass
+
+                    # Re-request high timer resolution periodically
+                    # (Windows may silently reclaim it during long sessions)
+                    hrt.tick()
+
+                    # Timing stats
+                    now: float = clock()
+                    actual_period_sum += now - last_tick
+                    last_tick = now
+                    frame_count += 1
+                    if now - last_log_time >= 2.0:
+                        avg_period = actual_period_sum / frame_count if frame_count else 0
+                        print(f"[IO] target: {frame_period*1000:.1f}ms ({1/frame_period:.0f}fps) | "
+                              f"actual: {avg_period*1000:.1f}ms ({1/avg_period:.0f}fps) | step: {step_duration*1000:.1f}ms")
+                        last_log_time = now
+                        frame_count = 0
+                        actual_period_sum = 0.0
+                except Exception as e:
+                    logger.error(f"Error in IO loop: {e}", exc_info=True)
+                    time.sleep(0.5)  # Sleep briefly to avoid tight error loop
         print("IO loop stopped.")
 
     def get_channels(self):

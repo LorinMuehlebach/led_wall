@@ -60,7 +60,7 @@ def create_preview_frame(output_buffer: np.ndarray, resolution: tuple[int, int],
 
 def create_preview_image(output_buffer,resolution,pixel_channels, gamma_correction:callable = None, preview_height = 200) -> bytes:
     preview_width = int((resolution[1] / resolution[0]) * preview_height)
-    if gamma_correction is not None:
+    if gamma_correction is not None and not False: #disable correction for now
         output_buffer = OutputCorrection.apply(output_buffer, gamma_correction)
     frame = create_preview_frame(output_buffer, resolution, pixel_channels, preview_width, preview_height)
     jpeg_bytes = convert(frame)

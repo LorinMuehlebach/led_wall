@@ -8,7 +8,7 @@ from nicegui.events import ValueChangeEventArguments
 from led_wall.ui.settings_element import SettingsElement
 from led_wall.ui.slider import Slider
 
-from led_wall.datatypes import Fader
+from led_wall.ui.show_inputs import Fader
 
 logger = logging.getLogger("utils")
 

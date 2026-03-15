@@ -6,7 +6,7 @@ from nicegui import ui
 
 from led_wall.effects.base_effect import BaseEffect
 from led_wall.ui.settings_manager import SettingsManager, SettingsElement
-from led_wall.datatypes import RGBW_Color, Fader, InputType
+from led_wall.ui.show_inputs import RGBW_Color, Fader, InputType
 from led_wall.ui.slider import Slider
 
 logger = logging.getLogger("utils")

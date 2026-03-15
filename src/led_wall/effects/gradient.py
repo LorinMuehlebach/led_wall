@@ -1,7 +1,7 @@
 import numpy as np
 import logging
 from led_wall.effects.base_effect import BaseEffect
-from led_wall.datatypes import RGBW_Color, Fader
+from led_wall.ui.show_inputs import RGBW_Color, Fader
 
 logger = logging.getLogger("utils")
 

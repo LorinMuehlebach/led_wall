@@ -3,7 +3,7 @@ import time
 import random
 from dataclasses import dataclass
 from led_wall.effects.base_effect import BaseEffect
-from led_wall.datatypes import Fader, RGBW_Color
+from led_wall.ui.show_inputs import Fader, RGBW_Color
 
 
 @dataclass
