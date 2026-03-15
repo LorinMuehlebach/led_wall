@@ -134,44 +134,48 @@ if (not DEV or __name__ != "__main__") and multiprocessing.current_process().nam
             except Exception as e:
                 logger.error(f"Error disconnecting client {client_id}: {e}")
 
-    def shutdown_handler(signum, frame):
-        """Handle graceful shutdown on Ctrl+C"""
+    async def async_shutdown():
+        """Async shutdown called by app.on_shutdown — runs BEFORE NiceGUI tears down background tasks."""
         global _shutdown_in_progress
-        
+
         if _shutdown_in_progress:
             return
-        
+
         _shutdown_in_progress = True
-        logger.info("Received shutdown signal, cleaning up...")
-        
+        logger.info("Shutting down...")
+
         # Disconnect all NiceGUI clients
         try:
-            loop = asyncio.get_event_loop()
-            if loop.is_running():
-                asyncio.create_task(disconnect_all_clients())
-            logger.info("Disconnecting clients...")
+            await disconnect_all_clients()
+            logger.info("Disconnected clients")
         except Exception as e:
             logger.error(f"Error disconnecting clients: {e}")
 
+        # Run blocking effect_manager.shutdown() in a thread so it doesn't
+        # block the event loop (it internally calls thread.join(timeout=2.0))
         if effect_manager:
-            effect_manager.shutdown()  # Stop all effects and cleanup resources
+            loop = asyncio.get_running_loop()
+            await loop.run_in_executor(None, effect_manager.shutdown)
             logger.info("Effect manager shutdown complete")
-                
-        # Save settings
-        # try:
-        #     settings_manager.save_to_file()
-        #     logger.info("Settings saved")
-        # except Exception as e:
-        #     logger.error(f"Error saving settings: {e}")
-        
+
         logger.info("Shutdown complete")
-        
-        if signum is not None:  # Only exit if called from signal handler
+
+    def shutdown_signal_handler(signum, frame):
+        """Signal handler — just tells NiceGUI to shut down; actual cleanup happens in app.on_shutdown."""
+        try:
+            asyncio.get_running_loop()
+            # NiceGUI is running: trigger its shutdown sequence
+            # app.on_shutdown(async_shutdown) will handle cleanup before task teardown
+            app.shutdown()
+        except RuntimeError:
+            # No running loop — fall back to synchronous cleanup
+            if effect_manager:
+                effect_manager.shutdown()
             sys.exit(0)
 
     # Register signal handler for clean shutdown
-    signal.signal(signal.SIGINT, shutdown_handler)
-    signal.signal(signal.SIGTERM, shutdown_handler)
+    signal.signal(signal.SIGINT, shutdown_signal_handler)
+    signal.signal(signal.SIGTERM, shutdown_signal_handler)
 
     if app_settings.settings["selected_preset"] not in presets:
         #should never happen maybe manual edits to settings file
@@ -250,7 +254,7 @@ if (not DEV or __name__ != "__main__") and multiprocessing.current_process().nam
         #print("After-server-start startup tasks are done")
 
     app.on_startup(delayed_startup_tasks)
-    app.on_shutdown(lambda: shutdown_handler(None, None))  # Ensure the shutdown handler is called on server shutdown
+    app.on_shutdown(async_shutdown)  # Ensure cleanup runs on NiceGUI's own shutdown path too
 
 
 if multiprocessing.current_process().name == 'MainProcess':
