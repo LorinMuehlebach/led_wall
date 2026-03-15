@@ -92,7 +92,7 @@ class Fader(InputType):
                 ui.label().bind_text_from(self.slider, 'value')
 
             if self.allow_saving:
-                self.checkbox = ui.checkbox('save',on_change=lambda e: self._on_change(None))
+                self.checkbox = ui.checkbox('save', value=self.save_in_settings, on_change=lambda e: self._on_change(None))
                 self.checkbox.bind_value(self,'save_in_settings')
         
         #if add_binding:
@@ -173,7 +173,7 @@ class RGBW_Color(ColorInput):
                 self.slider.ui_input(on_change=lambda e: self._white_changed(e.value))
 
             if self.allow_saving:
-                self.checkbox = ui.checkbox('save',on_change=lambda e: self._on_change(None))
+                self.checkbox = ui.checkbox('save', value=self.save_in_settings, on_change=lambda e: self._on_change(None))
                 self.checkbox.bind_value(self,'save_in_settings')
 
         return self.color_picker

@@ -1,6 +1,6 @@
 import os
 import numpy as np
-from inspect import getfullargspec
+import copy
 import logging
 
 from nicegui import ui
@@ -30,6 +30,7 @@ class BaseEffect:
         self.on_input_change:callable = None #callback function to update the DMX faders
         self.io_manager = None # Reference to IO_Manager, set by EffectManager
         self.saved_inputs = settings_manager.get_setting("saved_inputs",{})
+        self.setup = False
 
         self.setup_settings()
 
@@ -61,11 +62,10 @@ class BaseEffect:
             if input.allow_saving and self.saved_inputs and input_name in self.saved_inputs:
                 saved_channels = self.saved_inputs[input_name]
                 if saved_channels is not None:
-                    if input.__class__ == "RGBW_Color":
-                        pass
                     input.save_in_settings = True #mark the input as saved in the settings to show it in the UI
                     input.set_channels(saved_channels)
-                    return
+                    processed_channel += n_channels #skip processing the channels for this input as it is loaded from the settings, but still increase the processed_channel to keep the correct channel index for the next inputs
+                    continue
             
             input.set_channels(DMX_channels[processed_channel:processed_channel + n_channels])
             processed_channel += n_channels
@@ -112,15 +112,16 @@ class BaseEffect:
             #save the input values in the settings if enabled, but only if there are channels to save
             input = self.inputs[input_name]
             if input.allow_saving:
-                val_dict = self.saved_inputs
+                val_dict = copy.deepcopy(self.saved_inputs)
                 if not input.save_in_settings:
                     if input_name in val_dict:
                         del val_dict[input_name]
                 else:
                     val_dict[input_name] = input.get_channels()
 
-                self.saved_inputs = val_dict #update the saved inputs with the new values for this input
+                #self.saved_inputs = val_dict #update the saved inputs with the new values for this input
                 self.settings_manager.update_setting("saved_inputs", val_dict) #save the updated values for this input in the settings manager
+                self.saved_inputs = val_dict #update the local saved_inputs with the new values for this input
 
             dmx_channels += self.inputs[input_name].get_channels()
 
@@ -158,18 +159,24 @@ class BaseEffect:
 
         self.ui_inputs = []
 
+        self.setup = False #used to avoid triggering the input change callback when the UI is created and the inputs are updated with the DMX channel values for the first time
+
         #ui.label(self.DESCRIPTION)
         with ui.row().classes('w-full'):
-            for idx, input_element in enumerate(self.inputs):
+            for idx, input_element_name in enumerate(self.inputs):
                 if idx == 2:
                     continue #skip "mode" input as it is only used to select the effect but not as an actual input for the effect
                 
                 with ui.column():
-                    element_name = input_element.replace('_', ' ')
+                    element_name = input_element_name.replace('_', ' ')
                     ui.label(element_name).classes('text-lg font-bold')
-                    input_element = self.inputs[input_element]
+                    input_element = self.inputs[input_element_name]
                     if idx != 0: #if not master fader, allow saving the value in the settings
                         input_element.allow_saving = True #allow saving the input values in the settings
+
+                        #set the saved settings value
+                        if input_element_name in self.saved_inputs:
+                            input_element.save_in_settings = True
 
                     input_element.ui_input() #create the UI element for the input, but don't bind it to the input value yet to avoid triggering the callback when the UI is created
                     input_element.on_ui_input = None #reset callback to avoid triggering it when the UI is created
@@ -185,7 +192,7 @@ class BaseEffect:
                 # #TODO check if needed
                 # if hasattr(input, "slider"): #if the input has a slider element, bind the slider value to the input value to update it when the slider is changed
                 #     input.slider.bind_value(input, 'value') #bind the slider value to the input value to update it when the slider is changed
-
+        self.setup = True
 
 if __name__ in {"__main__", "__mp_main__"}:
     # Example usage

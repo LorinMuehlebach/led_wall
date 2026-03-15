@@ -106,6 +106,8 @@ class SettingsManager:
                 self.parent.settings_change(self, self.settings)
             elif self.path:
                 self.save_with_timeout()
+        
+        self.settings[setting_id] = value # All good update the setting value
 
     def save_with_timeout(self) -> None:
         """
