@@ -146,18 +146,18 @@ def preview_setup(video_image:ui.interactive_image,webcam:bool = False,get_previ
 
 class OutputCorrection:
     @staticmethod
-    def apply(output_buffer: np.ndarray, method: str, max_val: int = 0xFF) -> np.ndarray:
+    def apply(output_buffer: np.ndarray, method: str, max_val: int = 0xFF, output_type: np.dtype = np.uint8) -> np.ndarray:
         if method == 'linear':
             return output_buffer
         elif method == 'quadratic':
-            return (max_val * ((output_buffer/max_val) ** 2)).astype(np.uint8)
+            return (max_val * ((output_buffer/max_val) ** 2)).astype(output_type)
         elif method == 'cubic':
-            return (max_val * ((output_buffer/max_val) ** 3)).astype(np.uint8)
+            return (max_val * ((output_buffer/max_val) ** 3)).astype(output_type)
         elif method == 'quadruple':
-            return (max_val * ((output_buffer/max_val) ** 4)).astype(np.uint8)
+            return (max_val * ((output_buffer/max_val) ** 4)).astype(output_type)
         elif method == '2.2 gamma':
             gamma = 2.2
-            return (max_val * ((output_buffer / max_val) ** gamma)).astype(np.uint8)
+            return (max_val * ((output_buffer / max_val) ** gamma)).astype(output_type)
         else:
             raise ValueError(f"Unknown correction method: {method}")
 

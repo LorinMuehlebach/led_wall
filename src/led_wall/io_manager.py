@@ -61,6 +61,7 @@ class IO_Manager():
         self.device_universes = 8
         self.black_on_close = True #whether to send black on close of the application, can be disabled for testing to prevent issues with StupidArtnet when restarting the loop multiple times in a short time
         self.gamma_correction = list(OutputCorrection.available_methods().keys())[0] #available gamma correction methods for the output, can be set to a specific method or None to disable gamma correction
+        self.dithering = False
         self.flip_top_bottom = False
         self.flip_left_right = False
 
@@ -127,6 +128,14 @@ class IO_Manager():
                     input=ui.switch,
                     default_value=self.preview_in_window,
                     on_change=lambda e, self=self: setattr(self, 'preview_in_window', e.value),
+                    manager=self.settings_manager
+                ),
+                SettingsElement(
+                    label='dithering',
+                    input=ui.switch,
+                    settings_id='dithering',
+                    default_value=self.dithering,
+                    on_change=lambda e, self=self: setattr(self, 'dithering', e.value),
                     manager=self.settings_manager
                 ),
             ],
@@ -512,6 +521,41 @@ class IO_Manager():
         #self.artnet_sender.start()
 
     last_thread_id: int | None = None
+
+    @staticmethod
+    def _apply_checkerboard_dithering(buffer_u16: np.ndarray) -> np.ndarray:
+        """Apply static checkerboard (Schachbrett) spatial dithering to convert uint16 → uint8.
+
+        The input values are scaled by 10 (e.g. 1250 represents 125.0 in uint8).
+        A fixed checkerboard pattern determines which pixels round up and which
+        round down, effectively adding one decimal digit of brightness resolution
+        across neighbouring LEDs.
+
+        Args:
+            buffer_u16: Output-corrected pixel data as uint16, values in range
+                        0-2550 (i.e. the uint8 value × 10).
+
+        Returns:
+            uint8 array ready for ArtNet output.
+        """
+        h, w = buffer_u16.shape[0], buffer_u16.shape[1]
+
+        # Static spatial checkerboard: True where (x + y) is even
+        rows = np.arange(h, dtype=np.uint8)[:, np.newaxis]
+        cols = np.arange(w, dtype=np.uint8)[np.newaxis, :]
+        checkerboard = ((rows + cols) % 2 == 0)  # shape (h, w)
+
+        # Expand to match channel dimension
+        checkerboard = checkerboard[..., np.newaxis]  # (h, w, 1)
+
+        base = (buffer_u16 // 10).astype(np.uint16)   # integer part (0-255)
+        frac = (buffer_u16 % 10).astype(np.uint16)    # fractional part (0-9)
+
+        # Round up where checkerboard is True AND fractional part >= 5
+        round_up = checkerboard & (frac >= 5)
+        result = base + round_up.astype(np.uint16)
+        return np.clip(result, 0, 255).astype(np.uint8)
+
     def update_artnet_output(self):
         if not hasattr(self, 'artnet_sender') or not self.artnet_sender:
             return
@@ -535,7 +579,13 @@ class IO_Manager():
             output_buffer = np.flip(output_buffer, axis=0) # flip horizontally
 
         if self.gamma_correction is not None:
-            output_buffer = OutputCorrection.apply(output_buffer, self.gamma_correction)
+            use_dithering = self.dithering and self.gamma_correction != 'linear'
+            if use_dithering:
+                # Use uint16 for higher precision before dithering
+                output_buffer = OutputCorrection.apply(output_buffer*10, self.gamma_correction, max_val=2550, output_type=np.uint16)
+                output_buffer = self._apply_checkerboard_dithering(output_buffer)
+            else:
+                output_buffer = OutputCorrection.apply(output_buffer, self.gamma_correction)
         
         if self.addressing_direction == 'vertical':
             for x in range(width):
