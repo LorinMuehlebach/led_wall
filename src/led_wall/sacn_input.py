@@ -71,6 +71,7 @@ class SACNInput:
         bind_address: str = "",
         multicast: bool = True,
         use_internal_loop: bool = True,
+        unfiltered_channels: set[int] | None = None,
     ) -> None:
         self.universe: int = universe
         self.start_channel: int = start_channel
@@ -81,6 +82,8 @@ class SACNInput:
         self.bind_address: str = bind_address
         self.multicast: bool = multicast
         self.use_internal_loop: bool = use_internal_loop
+        # Channels (0-based indices) that bypass smoothing and jump instantly to target
+        self.unfiltered_channels: set[int] = unfiltered_channels or set()
 
         # Internal state --------------------------------------------------------
         self._lock: threading.Lock = threading.Lock()
@@ -233,19 +236,24 @@ class SACNInput:
         with self._lock:
             target: list[int] = list(self._last_rx_data)
 
-        # Move each channel toward target by at most current_step
+        # Move each channel toward target by at most current_step.
+        # Channels listed in unfiltered_channels jump instantly (no smoothing).
         changed: bool = False
         for i in range(self.n_channels):
             diff: int = target[i] - self._output_data[i]
             if diff == 0:
                 continue
             changed = True
-            move: int = min(abs(diff), current_step)
-            if diff > 0:
-                self._output_data[i] += move
+            if i in self.unfiltered_channels:
+                # Instant pass-through — no ramp
+                self._output_data[i] = target[i]
             else:
-                self._output_data[i] -= move
-            self._output_data[i] = max(0, min(255, self._output_data[i]))
+                move: int = min(abs(diff), current_step)
+                if diff > 0:
+                    self._output_data[i] += move
+                else:
+                    self._output_data[i] -= move
+                self._output_data[i] = max(0, min(255, self._output_data[i]))
 
         result: list[int] = list(self._output_data)
 

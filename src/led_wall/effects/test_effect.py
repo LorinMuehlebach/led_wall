@@ -44,7 +44,7 @@ class TestEffect(BaseEffect):
 
         output_array = np.full((self.resolution[0], self.resolution[1], 4), self.inputs['background_color'].get_channels(), dtype=np.uint8)
         output_array[position%self.resolution[0], :] = self.inputs['rgbw_color'].get_channels()
-        output_array[:, position%self.resolution[1]] = [255, 255, 255, 0]
+        output_array[:, position%self.resolution[1]] = self.inputs['rgbw_color'].get_channels()
 
         #output_array = np.full((self.resolution[1], self.resolution[0], 4), color.get_channels(), dtype=np.uint8)
         return output_array

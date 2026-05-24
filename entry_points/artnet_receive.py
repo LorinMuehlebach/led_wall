@@ -316,7 +316,7 @@ if __name__ in {"__main__", "__mp_main__"}:
     ui.run(
         title='ArtNet DMX Receiver',
         host="0.0.0.0",
-        port=8081,
+        port=8082,
         reload=False,
         dark=True
     )

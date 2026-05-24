@@ -58,10 +58,15 @@ def create_preview_frame(output_buffer: np.ndarray, resolution: tuple[int, int],
     return final_frame
 
 
-def create_preview_image(output_buffer,resolution,pixel_channels, gamma_correction:callable = None, preview_height = 200) -> bytes:
+def create_preview_image(output_buffer, resolution, pixel_channels, gamma_correction: callable = None, dithering: bool = False, preview_height: int = 200) -> bytes:
     preview_width = int((resolution[1] / resolution[0]) * preview_height)
-    if gamma_correction is not None and not False: #disable correction for now
-        output_buffer = OutputCorrection.apply(output_buffer, gamma_correction)
+    if gamma_correction is not None:
+        use_dithering = dithering and gamma_correction != 'linear'
+        if use_dithering:
+            output_buffer = OutputCorrection.apply(output_buffer.astype(np.uint16) * 10, gamma_correction, max_val=2550, output_type=np.uint16)
+            output_buffer = OutputCorrection.apply_checkerboard_dithering(output_buffer)
+        else:
+            output_buffer = OutputCorrection.apply(output_buffer, gamma_correction)
     frame = create_preview_frame(output_buffer, resolution, pixel_channels, preview_width, preview_height)
     jpeg_bytes = convert(frame)
     return jpeg_bytes
@@ -84,7 +89,7 @@ def preview_setup(video_image:ui.interactive_image,webcam:bool = False,get_previ
 
         if get_preview_frame is None:
             if io_manager is not None:
-                args = (io_manager.output_buffer, io_manager.resolution, io_manager.pixel_channels, io_manager.gamma_correction)
+                args = (io_manager.output_buffer, io_manager.resolution, io_manager.pixel_channels, io_manager.gamma_correction, io_manager.dithering)
                 jpeg = await run.cpu_bound(create_preview_image, *args)
                 return Response(content=jpeg, media_type='image/jpeg')
             
@@ -163,8 +168,42 @@ class OutputCorrection:
 
     @staticmethod
     def available_methods():
-        return {"linear": "Linear (no correction)", 
-                "quadratic": "Quadratic", 
-                "cubic": "Cubic", 
+        return {"linear": "Linear (no correction)",
+                "quadratic": "Quadratic",
+                "cubic": "Cubic",
                 "quadruple": "Quadruple",
                 "2.2 gamma": "Gamma 2.2 (approximation of sRGB)"}
+
+    @staticmethod
+    def apply_checkerboard_dithering(buffer_u16: np.ndarray) -> np.ndarray:
+        """Apply static checkerboard spatial dithering to convert uint16 → uint8.
+
+        The input values are scaled by 10 (e.g. 1250 represents 125.0 in uint8).
+        A fixed checkerboard pattern determines which pixels round up and which
+        round down, effectively adding one decimal digit of brightness resolution
+        across neighbouring LEDs.
+
+        Args:
+            buffer_u16: Output-corrected pixel data as uint16, values in range
+                        0-2550 (i.e. the uint8 value × 10).
+
+        Returns:
+            uint8 array ready for output.
+        """
+        h, w = buffer_u16.shape[0], buffer_u16.shape[1]
+
+        # Static spatial checkerboard: True where (x + y) is even
+        rows = np.arange(h, dtype=np.uint8)[:, np.newaxis]
+        cols = np.arange(w, dtype=np.uint8)[np.newaxis, :]
+        checkerboard = ((rows + cols) % 2 == 0)  # shape (h, w)
+
+        # Expand to match channel dimension
+        checkerboard = checkerboard[..., np.newaxis]  # (h, w, 1)
+
+        base = (buffer_u16 // 10).astype(np.uint16)   # integer part (0-255)
+        frac = (buffer_u16 % 10).astype(np.uint16)    # fractional part (0-9)
+
+        # Round up where checkerboard is True AND fractional part >= 5
+        round_up = checkerboard & (frac >= 5)
+        result = base + round_up.astype(np.uint16)
+        return np.clip(result, 0, 255).astype(np.uint8)

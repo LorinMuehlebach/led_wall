@@ -21,9 +21,12 @@ logger = logging.getLogger(__name__)
 class EffectManager():
     nof_effects = 8
 
-    def __init__(self,IO_manager:IO_Manager,settings_manager:SettingsManager) -> None:
+    def __init__(self, IO_manager: IO_Manager, settings_manager: SettingsManager, mgr_index: int = 0, embedded: bool = False, channel_offset: int = 0) -> None:
         self.IO_manager = IO_manager
         self.settings_manager = settings_manager
+        self.mgr_index = mgr_index  # 0-based index of this manager (used for UI labels)
+        self.embedded = embedded  # True when owned by DualEffectManager (skips preview/IO teardown)
+        self.channel_offset = channel_offset  # First DMX channel index owned by this manager
 
         #effect manager needs to be reloaded on changes to the IO_manager
         self.resolution = IO_manager.resolution
@@ -45,6 +48,24 @@ class EffectManager():
         self.active_effect = 0
 
         self.status = "setup"
+
+    # ------------------------------------------------------------------
+    # Channel helpers
+    # ------------------------------------------------------------------
+
+    # Number of DMX channels this manager owns (14 per manager)
+    CHANNELS_PER_MANAGER: int = 14
+
+    def _get_my_channels(self) -> list[int]:
+        """Return the 14-channel slice that belongs to this manager."""
+        all_ch = self.IO_manager.get_channels()
+        return all_ch[self.channel_offset: self.channel_offset + self.CHANNELS_PER_MANAGER]
+
+    def _write_my_channels(self, my_channels: list[int]) -> None:
+        """Write a 14-channel list back into the correct slice of the full channel array."""
+        all_ch = self.IO_manager.get_channels()
+        all_ch[self.channel_offset: self.channel_offset + self.CHANNELS_PER_MANAGER] = my_channels
+        self.IO_manager.update_DMX_channels(all_ch)
 
     def setup(self):
         #initialize the effects
@@ -77,7 +98,9 @@ class EffectManager():
         self.effect_manager_ui.refresh()
         self.change_active_effect(index=self.active_effect)
 
-        self.IO_manager.create_frame = self.run_loop
+        # Only take over create_frame when not embedded — DualEffectManager sets its own
+        if not self.embedded:
+            self.IO_manager.create_frame = self.run_loop
         
     @ui.refreshable
     def effect_manager_ui(self):
@@ -120,7 +143,7 @@ class EffectManager():
                             
                             ui.button('Einstellungen', on_click=open_settings)
                         with ui.element("div").classes('flex-grow').style('zoom: 0.8;'):
-                            self.effects[tab_idx].ui_show(self.IO_manager.get_channels())        
+                            self.effects[tab_idx].ui_show(self._get_my_channels())
 
     @ui.refreshable
     def effect_setting_ui(self):
@@ -129,7 +152,7 @@ class EffectManager():
     @ui.refreshable
     def effect_show_ui(self):
         with ui.element('div').style('zoom: 0.8;'):
-            self.effects[self.active_effect].ui_show(self.IO_manager.get_channels())
+            self.effects[self.active_effect].ui_show(self._get_my_channels())
 
     def on_tab_change(self, event):
         """
@@ -147,11 +170,11 @@ class EffectManager():
         except (ValueError, TypeError, IndexError):
             return
 
-        channels = self.IO_manager.get_channels()
-        slider_tab_idx = self.value_to_effect_idx(channels[5])
+        my_channels = self._get_my_channels()
+        slider_tab_idx = self.value_to_effect_idx(my_channels[5])
         if tab_index != slider_tab_idx:
-            channels[5] = int(tab_index / self.nof_effects * 256)  # Update the channel value to reflect the new effect
-            self.IO_manager.update_DMX_channels(channels)  # Trigger an update to apply the new effect immediately
+            my_channels[5] = int(tab_index / self.nof_effects * 256)  # Update the channel value to reflect the new effect
+            self._write_my_channels(my_channels)  # Trigger an update to apply the new effect immediately
 
     def change_active_effect(self, new_effect=None, index=None):
         if self.status == "setup":
@@ -168,8 +191,8 @@ class EffectManager():
         else:
             raise ValueError("Either new_effect or index must be provided to change the active effect.")
         
-        #set channels to current dmx channels
-        channels = self.IO_manager.get_channels()
+        #set channels to current dmx channels (own slice only)
+        channels = self._get_my_channels()
         self.effects[self.active_effect].update_inputs(channels)
         self.effects[self.active_effect].start()
         self.effects[self.active_effect].on_input_change = self.update_channels_from_show_ui
@@ -188,9 +211,10 @@ class EffectManager():
         self.effect_show_ui.refresh()
 
     def update_channels_from_show_ui(self, channels):
-        get_selected_effect_value = self.IO_manager.get_channels()[5]  # Assuming channel 5 is used for effect selection
-        channels[5] = get_selected_effect_value  # Ensure the effect selection channel is not overridden by the show UI
-        self.IO_manager.update_DMX_channels(channels)
+        # Preserve the mode/effect-selection channel from the current DMX state
+        current_mode = self._get_my_channels()[5]
+        channels[5] = current_mode  # Don't let the show UI override the effect selector
+        self._write_my_channels(channels)
 
 
     def on_effect_selected(self, event, index):
@@ -253,18 +277,19 @@ class EffectManager():
         self.effects[self.active_effect].update_inputs(channels)
         output = self.effects[self.active_effect].run_raw(channels, last_output)
 
-        # Update FPS counter
-        self._fps_frame_count += 1
-        now = time.perf_counter()
-        dt = now - self._fps_last_report
-        if dt >= 1.0:
-            self._fps_value = self._fps_frame_count / dt
-            self._fps_frame_count = 0
-            self._fps_last_report = now
-            if self._fps_label is not None:
-                self._fps_label.set_text(f'{self._fps_value:.1f} FPS')
+        # Update FPS counter (skipped when embedded — DualEffectManager tracks FPS)
+        if not self.embedded:
+            self._fps_frame_count += 1
+            now = time.perf_counter()
+            dt = now - self._fps_last_report
+            if dt >= 1.0:
+                self._fps_value = self._fps_frame_count / dt
+                self._fps_frame_count = 0
+                self._fps_last_report = now
+                if self._fps_label is not None:
+                    self._fps_label.set_text(f'{self._fps_value:.1f} FPS')
 
-        if self.IO_manager.preview_in_window:
+        if not self.embedded and self.IO_manager.preview_in_window and hasattr(self, 'preview_width'):
             # If a preview image is set, update it with the new frame
             preview = create_preview_frame(
                 output_buffer=self.IO_manager.output_buffer,
@@ -281,7 +306,10 @@ class EffectManager():
     def init_preview(self, preview_image: ui.interactive_image, fps_label: ui.label | None = None) -> None:
         """
         initializes the preview window for the led wall.
+        When embedded in DualEffectManager this is a no-op — the parent handles preview.
         """
+        if self.embedded:
+            return
         self.preview_height = 200
         aspect_ratio = self.dimension[0] / self.dimension[1]
         self.preview_width = int(self.preview_height * aspect_ratio)
@@ -293,7 +321,10 @@ class EffectManager():
     def setup_preview(self) -> None:
         """
         sets up the preview window for the led wall.
-        """        
+        When embedded in DualEffectManager this is a no-op — the parent handles preview.
+        """
+        if self.embedded:
+            return
         if not self.preview_image:
             raise ValueError("Preview image not initialized. Call init_preview() first.")
 
@@ -329,8 +360,8 @@ class EffectManager():
             except Exception as e:
                 logger.error(f"Error stopping effect: {e}")
         
-        # Stop the IO manager loop
-        if self.IO_manager:
+        # Stop the IO manager loop — only when not embedded in a DualEffectManager
+        if not self.embedded and self.IO_manager:
             try:
                 self.IO_manager.stop_loop()
                 logger.info("Stopped IO manager loop")

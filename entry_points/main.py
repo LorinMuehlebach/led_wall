@@ -7,8 +7,7 @@ import multiprocessing
 import socket
 
 from led_wall.ui.logging_config import getLogger
-from led_wall.effects.effect_manager import EffectManager
-from led_wall.ui.dmx_channels import DMX_channels_Input
+from led_wall.effects.dual_effect_manager import DualEffectManager
 from led_wall.ui.settings_manager import SettingsElement, SettingsManager
 from led_wall.io_manager import IO_Manager, get_local_ip
 from dotenv import load_dotenv
@@ -65,11 +64,11 @@ if (not DEV or __name__ != "__main__") and multiprocessing.current_process().nam
         os.makedirs(media_dir)
     app.add_static_files('/media', media_dir)
 
-    effect_manager = None
+    effect_manager: DualEffectManager | None = None
 
     #define main window ui
     @ui.refreshable
-    def main_window(effect_manager:EffectManager):
+    def main_window(effect_manager: DualEffectManager | None):
         if effect_manager:
             with ui.row().classes('w-full flex flex-wrap gap-4'):
                 with ui.element("div").classes('w-full md:w-1/4 min-w-[200px]'):
@@ -83,7 +82,7 @@ if (not DEV or __name__ != "__main__") and multiprocessing.current_process().nam
 
                 with ui.element("div").classes('flex-1 min-w-[300px]'):
                     ui.label("Effekte").classes('text-2xl font-bold mb-4')
-                    effect_manager.effect_manager_ui()
+                    effect_manager.effect_manager_ui_tabs()
 
     # @ui.refreshable
     # def effect_settings_ui(effect_manager):
@@ -93,6 +92,22 @@ if (not DEV or __name__ != "__main__") and multiprocessing.current_process().nam
     def show_ui(effect_manager, io_manager):
         ui.label("DMX channels").classes('text-1xl font-bold mb-4')
         io_manager.dmx_channel_ui()  # Create the settings UI for DMX inputs
+
+    def _migrate_preset_settings(preset_name: str) -> None:
+        """One-time migration: move old flat effect keys into the effect_mgr_0 namespace."""
+        preset_data = settings_manager.settings["presets"].get(preset_name, {})
+        has_old_keys = any(
+            k.startswith("active_effect_") or k.startswith("effect_settings_")
+            for k in preset_data
+        )
+        if has_old_keys and "effect_mgr_0" not in preset_data:
+            mgr0_data: dict = {}
+            for k in list(preset_data.keys()):
+                if k.startswith("active_effect_") or k.startswith("effect_settings_"):
+                    mgr0_data[k] = preset_data.pop(k)
+            preset_data["effect_mgr_0"] = mgr0_data
+            settings_manager.save_with_timeout()
+            logger.info(f"Migrated preset '{preset_name}' settings to effect_mgr_0 namespace")
 
     def preset_change(e) -> None:
         global effect_manager, io_manager
@@ -105,20 +120,22 @@ if (not DEV or __name__ != "__main__") and multiprocessing.current_process().nam
             presets.append(e.value)
             settings_manager.settings["presets"][e.value] = {}
             settings_manager.save_with_timeout()
-        
+
+        # Migrate old flat settings to the new nested structure if needed
+        _migrate_preset_settings(e.value)
+
         logger.info(f"Preset changed to {e.value}")
 
         if effect_manager:
             effect_manager.shutdown()  # Stop all effects and cleanup resources before creating a new effect manager
 
-        #create a new effect manager with the new preset settings
+        # Create a DualEffectManager with the new preset settings
         effect_settings = SettingsManager(parent=SettingsManager(parent=settings_manager, name="presets"), name=e.value)
-        effect_manager = EffectManager(IO_manager=io_manager, settings_manager=effect_settings)
-        effect_manager.setup()  # Setup the effect manager with the new preset settings
+        effect_manager = DualEffectManager(io_manager=io_manager, settings_manager=effect_settings)
+        effect_manager.setup()  # Setup both effect managers with the preset settings
 
         main_window.refresh(effect_manager)  # Refresh the main window to show the new effects
-        #effect_settings_ui.refresh(effect_manager)
-        show_ui.refresh(effect_manager,io_manager)
+        show_ui.refresh(effect_manager, io_manager)
 
         effect_manager.setup_preview()  # Setup the preview before the UI is fully up
         effect_manager.IO_manager.start_loop()

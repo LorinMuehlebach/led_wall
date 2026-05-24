@@ -37,7 +37,7 @@ class IO_Manager():
 
         """
         self.settings_manager = SettingsManager(parent=settings_manager, name="io_settings")
-        self.dmx_channel_inputs = DMX_channels_Input(14)
+        self.dmx_channel_inputs = DMX_channels_Input(28)
 
         # sACN input
         self.sacn_input: SACNInput | None = None
@@ -460,6 +460,13 @@ class IO_Manager():
         if self.sacn_input is not None:
             self.sacn_input.stop()
 
+        # Effect-selection channels must not be smoothed so effect switches are instant.
+        # Each EffectManager owns 14 channels; its effect-selector is at offset 5.
+        effect_select_channels = {
+            5,       # manager 0: channel 0+5
+            14 + 5,  # manager 1: channel 14+5
+        }
+
         self.sacn_input = SACNInput(
             universe=self.input_universe,
             start_channel=self.input_dmx_address,
@@ -469,6 +476,7 @@ class IO_Manager():
             time_full_change=self.input_filter,
             multicast=True,
             use_internal_loop=False,
+            unfiltered_channels=effect_select_channels,
         )
         self.sacn_input.start()
         logger.info(
@@ -524,37 +532,8 @@ class IO_Manager():
 
     @staticmethod
     def _apply_checkerboard_dithering(buffer_u16: np.ndarray) -> np.ndarray:
-        """Apply static checkerboard (Schachbrett) spatial dithering to convert uint16 → uint8.
-
-        The input values are scaled by 10 (e.g. 1250 represents 125.0 in uint8).
-        A fixed checkerboard pattern determines which pixels round up and which
-        round down, effectively adding one decimal digit of brightness resolution
-        across neighbouring LEDs.
-
-        Args:
-            buffer_u16: Output-corrected pixel data as uint16, values in range
-                        0-2550 (i.e. the uint8 value × 10).
-
-        Returns:
-            uint8 array ready for ArtNet output.
-        """
-        h, w = buffer_u16.shape[0], buffer_u16.shape[1]
-
-        # Static spatial checkerboard: True where (x + y) is even
-        rows = np.arange(h, dtype=np.uint8)[:, np.newaxis]
-        cols = np.arange(w, dtype=np.uint8)[np.newaxis, :]
-        checkerboard = ((rows + cols) % 2 == 0)  # shape (h, w)
-
-        # Expand to match channel dimension
-        checkerboard = checkerboard[..., np.newaxis]  # (h, w, 1)
-
-        base = (buffer_u16 // 10).astype(np.uint16)   # integer part (0-255)
-        frac = (buffer_u16 % 10).astype(np.uint16)    # fractional part (0-9)
-
-        # Round up where checkerboard is True AND fractional part >= 5
-        round_up = checkerboard & (frac >= 5)
-        result = base + round_up.astype(np.uint16)
-        return np.clip(result, 0, 255).astype(np.uint8)
+        """Delegate to the shared implementation in OutputCorrection."""
+        return OutputCorrection.apply_checkerboard_dithering(buffer_u16)
 
     def update_artnet_output(self):
         if not hasattr(self, 'artnet_sender') or not self.artnet_sender:
@@ -582,7 +561,7 @@ class IO_Manager():
             use_dithering = self.dithering and self.gamma_correction != 'linear'
             if use_dithering:
                 # Use uint16 for higher precision before dithering
-                output_buffer = OutputCorrection.apply(output_buffer*10, self.gamma_correction, max_val=2550, output_type=np.uint16)
+                output_buffer = OutputCorrection.apply(output_buffer.astype(np.uint16)*10, self.gamma_correction, max_val=2550, output_type=np.uint16)
                 output_buffer = self._apply_checkerboard_dithering(output_buffer)
             else:
                 output_buffer = OutputCorrection.apply(output_buffer, self.gamma_correction)
