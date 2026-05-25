@@ -1,10 +1,7 @@
 import os
 import signal
-import sys
 import asyncio
-import logging
 import multiprocessing
-import socket
 
 from led_wall.ui.logging_config import getLogger
 from led_wall.effects.dual_effect_manager import DualEffectManager
@@ -178,17 +175,30 @@ if (not DEV or __name__ != "__main__") and multiprocessing.current_process().nam
         logger.info("Shutdown complete")
 
     def shutdown_signal_handler(signum, frame):
-        """Signal handler — just tells NiceGUI to shut down; actual cleanup happens in app.on_shutdown."""
+        """Signal handler — schedules NiceGUI shutdown on the event loop.
+
+        Calling app.shutdown() directly from a signal handler is not safe on
+        Windows with ProactorEventLoop: it may be invoked while the loop's own
+        self-pipe machinery is running, and app.shutdown() tries to write to a
+        native multiprocessing Queue that may already be closed. Scheduling via
+        call_soon_threadsafe() defers the call to a safe point in the loop.
+        """
+        loop = asyncio._get_running_loop()  # returns None instead of raising
+        if loop is not None and loop.is_running() and not loop.is_closed():
+            loop.call_soon_threadsafe(_safe_app_shutdown)
+        else:
+            # Loop is gone — process is already tearing down, nothing to do.
+            pass
+
+    def _safe_app_shutdown():
+        """Call app.shutdown() with a guard against an already-closed native queue."""
         try:
-            asyncio.get_running_loop()
-            # NiceGUI is running: trigger its shutdown sequence
-            # app.on_shutdown(async_shutdown) will handle cleanup before task teardown
             app.shutdown()
-        except RuntimeError:
-            # No running loop — fall back to synchronous cleanup
-            if effect_manager:
-                effect_manager.shutdown()
-            sys.exit(0)
+        except ValueError:
+            # Queue already closed — native window is gone, nothing to do.
+            pass
+        except Exception as e:
+            logger.error(f"Error during app shutdown: {e}")
 
     # Register signal handler for clean shutdown
     signal.signal(signal.SIGINT, shutdown_signal_handler)
