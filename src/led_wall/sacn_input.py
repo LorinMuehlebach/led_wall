@@ -20,6 +20,10 @@ import sacn
 
 logger = getLogger(__name__)
 
+# On Windows, multicast reception requires binding to the specific interface IP
+# rather than 0.0.0.0. Enable this flag to auto-detect and bind to the local IP.
+BIND_TO_LOCAL_IP: bool = True
+
 # On Windows, request 1 ms timer resolution so time.sleep() only overshoots
 # by ~1-2 ms instead of ~15.6 ms.  This makes the coarse sleep before
 # the spin-wait much more effective at releasing the CPU.
@@ -94,6 +98,12 @@ class SACNInput:
         self._thread: threading.Thread | None = None
         self._last_step_ts: float | None = None  # timestamp of last smoothing_step call
 
+        # RX counter state
+        self._rx_frame_count: int = 0
+        self._rx_last_seq: int | None = None
+        self._rx_dropped: int = 0
+        self._rx_last_log: float = time.monotonic()
+
     # ------------------------------------------------------------------
     # Public API
     # ------------------------------------------------------------------
@@ -108,8 +118,13 @@ class SACNInput:
         self._running = True
 
         # Create receiver
-        if self.bind_address:
-            self._receiver = sacn.sACNreceiver(bind_address=self.bind_address)
+        bind = self.bind_address
+        if not bind and BIND_TO_LOCAL_IP:
+            import socket
+            bind = socket.gethostbyname(socket.gethostname())
+            logger.info("BIND_TO_LOCAL_IP enabled – binding sACN receiver to %s (universe %d)", bind, self.universe)
+        if bind:
+            self._receiver = sacn.sACNreceiver(bind_address=bind)
         else:
             self._receiver = sacn.sACNreceiver()
         self._receiver.start()
@@ -189,6 +204,23 @@ class SACNInput:
         """Called by the sacn library on every incoming DMX packet."""
         if packet.dmxStartCode != 0x00:
             return  # ignore non-DMX data packets
+
+        # RX rate / drop counter
+        self._rx_frame_count += 1
+        seq = packet.sequence
+        if self._rx_last_seq is not None:
+            gap = (seq - self._rx_last_seq) % 256
+            if gap > 1:
+                self._rx_dropped += gap - 1
+        self._rx_last_seq = seq
+        now = time.monotonic()
+        elapsed = now - self._rx_last_log
+        if elapsed >= 1.0:
+            fps = self._rx_frame_count / elapsed
+            logger.info("sACN RX: %.1f fps | dropped: %d (universe %d)", fps, self._rx_dropped, self.universe)
+            self._rx_frame_count = 0
+            self._rx_dropped = 0
+            self._rx_last_log = now
 
         start: int = self.start_channel - 1  # 0-based index
         end: int = start + self.n_channels

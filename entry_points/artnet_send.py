@@ -25,6 +25,7 @@ class ArtNetSender:
         self.universe = 0
         self.start_channel = 1
         self.fps = 30
+        self.broadcast = False
         
         # Number of DMX channels to control
         self.n_channels = 10
@@ -87,6 +88,14 @@ class ArtNetSender:
                 min=1,
                 max=60
             ),
+            SettingsElement(
+                label='Broadcast',
+                input=ui.checkbox,
+                settings_id='broadcast',
+                default_value=self.broadcast,
+                on_change=lambda e: setattr(self, 'broadcast', e.value),
+                manager=self.settings_manager,
+            ),
         ]
     
     def on_dmx_change(self, event):
@@ -135,7 +144,7 @@ class ArtNetSender:
                 packet_size=512,  # Standard DMX packet size
                 fps=self.fps,
                 even_packet_size=True,
-                broadcast=False
+                broadcast=self.broadcast
             )
             
             # Start sending
@@ -235,7 +244,6 @@ if __name__ in {"__main__", "__mp_main__"}:
     ui.run(
         title='ArtNet DMX Sender',
         host="0.0.0.0",
-        port=8082,
         reload=False,
         dark=True
     )

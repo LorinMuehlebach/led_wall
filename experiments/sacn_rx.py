@@ -1,30 +1,47 @@
 import sacn
 import time
+import socket
 
-# provide an IP-Address to bind to if you want to receive multicast packets from a specific interface
-receiver = sacn.sACNreceiver()
-receiver.start()  # start the receiving thread
+local_ip = socket.gethostbyname(socket.gethostname())
+print(f"Binding receiver to {local_ip}")
 
-# define a callback function
-@receiver.listen_on('universe', universe=1)  # listens on universe 1
-def callback(packet:sacn.DataPacket):  # packet type: sacn.DataPacket
-    if packet.dmxStartCode == 0x00:  # ignore non-DMX-data packets
-        current_time = time.time()
-        if hasattr(callback, 'last_time'):
-            delta = current_time - callback.last_time
-            if delta > 0:
-                fps = 1 / delta
-                print(f"FPS: {fps:.2f}")
-        callback.last_time = current_time
+receiver = sacn.sACNreceiver(bind_address=local_ip)
 
-        #print(packet.dmxData)  # print the received DMX data
+frame_count = 0
+last_seq = None
+dropped = 0
+last_log = time.time()
 
-# optional: if multicast is desired, join with the universe number as parameter
+@receiver.listen_on('universe', universe=1)
+def callback(packet: sacn.DataPacket):
+    global frame_count, last_seq, dropped, last_log
+
+    frame_count += 1
+
+    seq = packet.sequence
+    if last_seq is not None:
+        gap = (seq - last_seq) % 256
+        if gap > 1:
+            dropped += gap - 1
+    last_seq = seq
+
+    now = time.time()
+    elapsed = now - last_log
+    if elapsed >= 1.0:
+        fps = frame_count / elapsed
+        print(f"FPS: {fps:.1f} | dropped: {dropped}")
+        frame_count = 0
+        dropped = 0
+        last_log = now
+
+receiver.start()
 receiver.join_multicast(1)
 
-time.sleep(60)  # receive for 10 seconds
+try:
+    while True:
+        time.sleep(1)
+except KeyboardInterrupt:
+    pass
 
-# optional: if multicast was previously joined
 receiver.leave_multicast(1)
-
 receiver.stop()
